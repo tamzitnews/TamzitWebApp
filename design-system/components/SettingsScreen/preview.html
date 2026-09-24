@@ -1,0 +1,12 @@
+<!-- @dsCard group="מסכים" height=860 width=860 -->
+<!doctype html>
+<html lang="he" dir="rtl">
+<head><meta charset="utf-8"><title>SettingsScreen</title></head>
+<body>
+<div id="root" class="tz " dir="rtl" lang="he"></div>
+<script>
+  var T = window.Tamzit, h = React.createElement, F = React.Fragment;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', {className: 'tz-gallery'}, h(T.PhoneFrame, {caption: "הגדרות"}, h(T.SettingsScreen, null)), h(T.PhoneFrame, {caption: "מהדורות קהילתיות"}, h(T.SettingsScreen, {section: 'communities'}))));
+</script>
+</body>
+</html>

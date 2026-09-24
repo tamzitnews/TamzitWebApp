@@ -1,0 +1,12 @@
+<!-- @dsCard group="מסכים" height=860 width=860 -->
+<!doctype html>
+<html lang="he" dir="rtl">
+<head><meta charset="utf-8"><title>ShabbatScreen</title></head>
+<body>
+<div id="root" class="tz " dir="rtl" lang="he"></div>
+<script>
+  var T = window.Tamzit, h = React.createElement, F = React.Fragment;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', {className: 'tz-gallery'}, h(T.PhoneFrame, {caption: "שבת"}, h(T.ShabbatScreen, null)), h(T.PhoneFrame, {caption: "מהדורת מוצאי שבת"}, h(T.EditionScreen, {period: 'motzash', date: 'מוצאי שבת, 26 בספטמבר'}))));
+</script>
+</body>
+</html>

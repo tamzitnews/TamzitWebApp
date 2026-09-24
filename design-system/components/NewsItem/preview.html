@@ -1,0 +1,12 @@
+<!-- @dsCard group="מהדורה" height=470 -->
+<!doctype html>
+<html lang="he" dir="rtl">
+<head><meta charset="utf-8"><title>NewsItem</title></head>
+<body>
+<div id="root" class="tz tz-stack" dir="rtl" lang="he"></div>
+<script>
+  var T = window.Tamzit, h = React.createElement, F = React.Fragment;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', {style: {width: '100%', maxWidth: 360}}, h(T.NewsItem, {topic: 'מים', time: '07:10', level: 'critical', headline: 'שיבוש באספקת המים בדרום ירושלים עד הערב'}, 'בעקבות תקלה בצנרת ראשית צפוי לחץ מים נמוך בכמה שכונות עד 18:00. תאגיד המים מציב נקודות חלוקה.'), h(T.NewsItem, {topic: 'מזג אוויר', time: '06:45', level: 'important', defaultSaved: true, headline: 'גשם ראשון צפוי בסוף השבוע בצפון'}, 'התחזית צופה ירידה בטמפרטורות וממטרים מקומיים, בעיקר בגליל ובגולן. במרכז ובדרום יישאר נאה.')));
+</script>
+</body>
+</html>

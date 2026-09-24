@@ -1,0 +1,56 @@
+<!-- @dsCard height=320 -->
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>תמצית החדשות</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--surface); color: var(--ink); font-family: var(--font-sans); overflow: hidden; }
+  .cover { position: relative; height: 320px; overflow: hidden; direction: ltr; }
+  .art { position: absolute; top: 0; left: 480px; width: 480px; height: 320px; overflow: hidden; }
+  .art svg { display: block; width: 480px; height: 320px; }
+  .deep { fill: var(--surface-hero); }
+  [data-theme="dark"] .deep { fill: var(--surface-tint); }
+  .brand { fill: var(--brand); }
+  .sky { fill: var(--sky); }
+  .tint { fill: var(--surface-tint); }
+  [data-theme="dark"] .tint { fill: var(--line); }
+  .sun { fill: var(--sun); }
+  .sq { rx: var(--radius-0); }
+  .words { position: absolute; left: var(--space-6); bottom: var(--space-6); width: 420px; direction: rtl; text-align: right; }
+  .name { margin: 0; font-size: 104px; line-height: .95; font-weight: 800; letter-spacing: -.01em; color: var(--ink); }
+  .tag { margin: var(--space-3) 0 0; font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 480 320" width="480" height="320">
+<!--
+  blocks      surface-hero 192×336 bleeding top and bottom on the right edge (the logo's wordmark navy, the brand people know) · sky 144×152 on the bottom edge · brand 96×96 · surface-tint 96×104 · sun 48×48 once, on the slab (it only means premium and Shabbat) — about a third of 960×320
+  arrangement a flush modular grid on the space-12 (48px) pitch, stepping down toward the bottom right the way the site's squares sit on a diagonal
+  pattern     the site's two-square diagonal motif ("the brand's square geometry", radius-0): a staircase of single space-12 squares alternating sky and surface-tint climbing up-left from the blocks, and one motif pair cut into the slab
+  scales      every side a multiple of space-12 (48px); every corner radius-0
+-->
+<rect class="deep sq" x="288" y="-8" width="200" height="336"/>
+<rect class="sky sq" x="144" y="176" width="144" height="152"/>
+<rect class="brand sq" x="192" y="80" width="96" height="96"/>
+<rect class="tint sq" x="48" y="224" width="96" height="104"/>
+<rect class="sun sq" x="336" y="224" width="48" height="48"/>
+<rect class="sky sq" x="336" y="96" width="48" height="48"/>
+<rect class="tint sq" x="384" y="48" width="48" height="48"/>
+<rect class="sky sq" x="0" y="176" width="48" height="48"/>
+<rect class="tint sq" x="48" y="128" width="48" height="48"/>
+<rect class="sky sq" x="96" y="80" width="48" height="48"/>
+<rect class="tint sq" x="144" y="32" width="48" height="48"/>
+<rect class="sky sq" x="192" y="-16" width="48" height="48"/>
+</svg>
+</div>
+<div class="words">
+<h1 class="name">תמצית<br>החדשות</h1>
+<p class="tag">להתנתק ולהישאר מחובר</p>
+</div>
+</div>
+</body>
+</html>

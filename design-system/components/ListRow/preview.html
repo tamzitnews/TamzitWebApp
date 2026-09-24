@@ -1,0 +1,12 @@
+<!-- @dsCard group="ניווט" height=250 -->
+<!doctype html>
+<html lang="he" dir="rtl">
+<head><meta charset="utf-8"><title>ListRow</title></head>
+<body>
+<div id="root" class="tz tz-stack" dir="rtl" lang="he"></div>
+<script>
+  var T = window.Tamzit, h = React.createElement, F = React.Fragment;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', {style: {width: '100%', maxWidth: 360}}, h(T.ListGroup, {label: 'המהדורות שלי'}, h(T.ListRow, {icon: 'globe', title: 'שפה', value: 'עברית'}), h(T.ListRow, {icon: 'clock', title: 'תדירות', value: '3 ביום'}), h(T.ListRow, {icon: 'flame', title: 'מצב שבת וחגים', value: 'תמיד פעיל', chevron: false}))));
+</script>
+</body>
+</html>

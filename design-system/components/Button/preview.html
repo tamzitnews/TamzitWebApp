@@ -1,0 +1,12 @@
+<!-- @dsCard group="פעולות" height=200 -->
+<!doctype html>
+<html lang="he" dir="rtl">
+<head><meta charset="utf-8"><title>Button</title></head>
+<body>
+<div id="root" class="tz tz-row" dir="rtl" lang="he"></div>
+<script>
+  var T = window.Tamzit, h = React.createElement, F = React.Fragment;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(F, null, h(T.Button, null, 'המשך'), h(T.Button, {variant: 'secondary', icon: 'headphones'}, 'האזנה'), h(T.Button, {variant: 'quiet'}, 'כבר מנויים? כניסה'), h(T.Button, {variant: 'whatsapp', icon: 'message-circle'}, 'שיתוף בוואטסאפ'), h(T.Button, {variant: 'sun', icon: 'star', iconFill: true}, 'לפרימיום'), h('div', {style: {width: '100%', maxWidth: 360}}, h(T.Button, {size: 'lg', block: true}, 'בואו נתאים לכם מהדורה'))));
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+<!-- @dsCard group="ארכיון" height=280 -->
+<!doctype html>
+<html lang="he" dir="rtl">
+<head><meta charset="utf-8"><title>EditionRow</title></head>
+<body>
+<div id="root" class="tz tz-stack" dir="rtl" lang="he"></div>
+<script>
+  var T = window.Tamzit, h = React.createElement, F = React.Fragment;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', {style: {width: '100%', maxWidth: 360}}, h(T.EditionRow, {period: 'evening', meta: '20:00 · 7 ידיעות', unread: true}), h(T.EditionRow, {period: 'noon', meta: '13:00 · 5 ידיעות'}), h(T.EditionRow, {period: 'motzash', meta: 'מוצ״ש · 8 ידיעות'}), h(T.EditionRow, {period: 'morning', meta: 'יום ג׳, 15 בספטמבר', locked: true})));
+</script>
+</body>
+</html>

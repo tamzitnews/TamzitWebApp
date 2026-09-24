@@ -1,0 +1,12 @@
+<!-- @dsCard group="מנוי ותמיכה" height=340 -->
+<!doctype html>
+<html lang="he" dir="rtl">
+<head><meta charset="utf-8"><title>PlanCard</title></head>
+<body>
+<div id="root" class="tz tz-stack" dir="rtl" lang="he"></div>
+<script>
+  var T = window.Tamzit, h = React.createElement, F = React.Fragment;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', {style: {display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 320px))', gap: 16}}, h(T.PlanCard, {name: 'פרימיום', price: '[מחיר] ₪ לחודש', highlighted: true, ribbon: 'מומלץ', features: ['בלי פרסומות בכלל', 'כל הארכיון, עם חיפוש', 'תג תומך/ת בפרופיל'], cta: 'להצטרפות'}), h(T.PlanCard, {name: 'משפחתי', price: '[מחיר] ₪ לחודש · עד 5 בני משפחה', features: ['כל מה שבפרימיום, לכל אחד', 'לכל אחד ההגדרות והשפה שלו'], cta: 'להצטרפות'})));
+</script>
+</body>
+</html>

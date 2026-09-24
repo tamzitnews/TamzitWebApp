@@ -1,0 +1,12 @@
+<!-- @dsCard group="בחירה" height=420 -->
+<!doctype html>
+<html lang="he" dir="rtl">
+<head><meta charset="utf-8"><title>OptionCard</title></head>
+<body>
+<div id="root" class="tz tz-stack" dir="rtl" lang="he"></div>
+<script>
+  var T = window.Tamzit, h = React.createElement, F = React.Fragment;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', {style: {display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 360}}, h(T.OptionCard, {name: 'p-style', icon: 'feather', title: 'מרגיע', description: 'שקט, בלי דרמה, עם הקשר מרגיע', defaultChecked: true, sample: '“גשם ראשון בדרך לצפון. אין צורך בהיערכות מיוחדת, רק מטרייה קרובה.”'}), h(T.OptionCard, {name: 'p-style', icon: 'heart', title: 'אנושי', description: 'האנשים שמאחורי הידיעה', sample: '“בצפון מחכים לגשם הראשון, ובעיקר החקלאים.”'}), h(T.OptionCard, {name: 'p-style', icon: 'list', title: 'אינפורמטיבי', description: 'עובדות, מספרים, תכל׳ס', sample: '“תחזית: גשם ראשון ביום שישי בגליל ובגולן.”'}), h(T.OptionCard, {name: 'p-style', icon: 'smile', title: 'קליל', description: 'בגובה העיניים, עם חיוך', sample: '“הוציאו את המטריות מהבוידעם.”'})));
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+<!-- @dsCard group="ניווט" height=220 -->
+<!doctype html>
+<html lang="he" dir="rtl">
+<head><meta charset="utf-8"><title>ListGroup</title></head>
+<body>
+<div id="root" class="tz tz-stack" dir="rtl" lang="he"></div>
+<script>
+  var T = window.Tamzit, h = React.createElement, F = React.Fragment;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', {style: {width: '100%', maxWidth: 360}}, h(T.ListGroup, {label: 'מנוי ותמיכה'}, h(T.ListRow, {icon: 'star', title: 'פרימיום', value: 'פעיל'}), h(T.ListRow, {icon: 'users', title: 'מנוי משפחתי', value: '2 מתוך 5'}), h(T.ListRow, {icon: 'heart-handshake', title: 'תרומה לעמותה'}))));
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+<!-- @dsCard group="בחירה" height=150 -->
+<!doctype html>
+<html lang="he" dir="rtl">
+<head><meta charset="utf-8"><title>Chip</title></head>
+<body>
+<div id="root" class="tz tz-row" dir="rtl" lang="he"></div>
+<script>
+  var T = window.Tamzit, h = React.createElement, F = React.Fragment;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(F, null, ['ביטחון', 'כלכלה', 'בריאות', 'חינוך'].map(function (t, i) { return h(T.Chip, {key: t, defaultSelected: i < 2}, t); }), h(T.Chip, {icon: 'flag'}, 'דיווח על טעות')));
+</script>
+</body>
+</html>

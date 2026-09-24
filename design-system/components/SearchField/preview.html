@@ -1,0 +1,12 @@
+<!-- @dsCard group="ארכיון" height=150 -->
+<!doctype html>
+<html lang="he" dir="rtl">
+<head><meta charset="utf-8"><title>SearchField</title></head>
+<body>
+<div id="root" class="tz tz-stack" dir="rtl" lang="he"></div>
+<script>
+  var T = window.Tamzit, h = React.createElement, F = React.Fragment;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', {style: {width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 12}}, h(T.SearchField, {id: 's1', locked: true}), h(T.SearchField, {id: 's2', defaultValue: 'רכבת קלה'})));
+</script>
+</body>
+</html>
