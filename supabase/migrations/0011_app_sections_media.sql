@@ -7,7 +7,8 @@
 -- (b) Audio: the engine's public mp3 in the news-audio bucket ("<date>news.mp3" Hebrew, "<date>news-french.mp3"
 --     French) made minutes before the edition is sent; else the Drive audio attached to the edition, once
 --     app-media-sync has copied it into the public app-media bucket (Drive files must be shared "anyone with the
---     link"). Only playable links are returned; a Drive link never reaches the app.
+--     link"). Audio is never kept longer than a day: the engine empties news-audio daily, and app-media-sync
+--     removes its audio copies after a day. Only playable links are returned; a Drive link never reaches the app.
 -- (c) Ads (also donation campaigns) are matched to an edition by the language of their text and the send time:
 --     the engine sometimes links an element to the row of another language that was sent at the same second.
 --     The ad JSON gets `label` ("המהדורה בחסות"), `sponsor` (nullable), the full body, the link, and an image:
@@ -39,10 +40,6 @@ create table if not exists public.app_media (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
--- Also copies of the engine's news-audio mp3s (key 'na:<storage object id>'), which that bucket keeps only about a
--- day: src_created_at / src_size are the original object's, so editions still find their audio after it is gone.
-alter table public.app_media add column if not exists src_created_at timestamptz;
-alter table public.app_media add column if not exists src_size bigint;
 create index if not exists app_media_todo_idx on public.app_media (next_try_at) where status <> 'ok';
 alter table public.app_media enable row level security;
 
@@ -457,35 +454,21 @@ begin
   if v_pat is not null then
     select coalesce(sum(length(p.body) + length(coalesce(p.headline, ''))), 0) into v_chars
     from public.app_parse_edition(e.main_text, e.edition_type) p;
-    -- the bucket's objects, and our copies of them (the bucket keeps them only about a day); the copy wins
-    select c.key, c.url, c.created_at into o
-    from (
-      select distinct on (x.key) x.key, x.url, x.created_at, x.size
-      from (
-        select m.drive_id as key, m.public_url as url, m.src_created_at as created_at, m.src_size as size, 0 as pref
-        from public.app_media m
-        where m.drive_id like 'na:%' and m.status = 'ok' and m.file_name ~ v_pat
-          and m.src_created_at between v_span.first_at - interval '45 minutes' and v_span.first_at + interval '2 minutes'
-        union all
-        select 'na:' || so.id, public.app_storage_public_base() || '/news-audio/' || public.app_url_encode(so.name),
-               so.created_at, (so.metadata ->> 'size')::bigint, 1
-        from storage.objects so
-        where so.bucket_id = 'news-audio' and so.name ~ v_pat
-          and so.created_at between v_span.first_at - interval '45 minutes' and v_span.first_at + interval '2 minutes'
-      ) x
-      order by x.key, x.pref
-    ) c
+    select so.id, so.name, so.created_at into o
+    from storage.objects so
+    where so.bucket_id = 'news-audio' and so.name ~ v_pat
+      and so.created_at between v_span.first_at - interval '45 minutes' and v_span.first_at + interval '2 minutes'
     order by case when v_chars > 0 then
-               abs(ln(greatest(coalesce(c.size, 0)::numeric * 8 / 142000, 1) / greatest(v_chars / v_rate, 1)))
+               abs(ln(greatest(coalesce((so.metadata ->> 'size')::numeric, 0) * 8 / 142000, 1) / greatest(v_chars / v_rate, 1)))
              else 0 end,
-             c.created_at desc
+             so.created_at desc
     limit 1;
-    if o.key is not null then
+    if o.id is not null then
       return jsonb_build_object(
-        'id', replace(replace(o.key, 'na:', 'na'), '-', ''),
+        'id', 'na' || replace(o.id::text, '-', ''),
         'kind', 'edition',
         'title', coalesce(p_title, public.app_edition_title(e.main_text), 'תמצית החדשות'),
-        'audio_url', o.url,
+        'audio_url', public.app_storage_public_base() || '/news-audio/' || public.app_url_encode(o.name),
         'duration_sec', null,
         'published_at', o.created_at);
     end if;
@@ -793,9 +776,9 @@ $$;
 -- Media copies: queue for app-media-sync, trigger and schedule
 -- ===========================================================================
 
--- Queues new Drive files (images of the last 30 days; audio of the last 2 days, only where the news-audio bucket
--- has no copy, i.e. English), the news-audio mp3s of the last 3 days (key 'na:<object id>') and ad links, and
--- returns what is due: { files: [{drive_id, kind, source_url}], links: [{url}] }.
+-- Queues new Drive files (images of the last 30 days; audio of the last day only, and only where the news-audio
+-- bucket has none, i.e. English) and ad links, and returns what is due: { files: [{drive_id, kind}], links: [{url}] }.
+-- Audio copies are removed after a day by app-media-sync, so the bucket never fills up.
 create or replace function public.app_media_queue(p_limit int default 6) returns jsonb
 language plpgsql volatile security definer set search_path = public as $$
 declare
@@ -809,16 +792,9 @@ begin
   left join public.tamzit_editions le on le.id = el.edition_id
   where public.app_drive_id(el.media_id) is not null
     and ((el.element_type in ('ad', 'donation_campaign', 'cta_link') and el.created_at > now() - interval '30 days')
-         or (el.element_type = 'audio' and el.created_at > now() - interval '2 days'
+         or (el.element_type = 'audio' and el.created_at > now() - interval '1 day'
              and (le.language = 'english' or public.app_element_sent_lang(el.created_at) = 'english')))
   order by public.app_drive_id(el.media_id), el.id desc
-  on conflict (drive_id) do nothing;
-
-  insert into public.app_media (drive_id, source_url, kind, file_name, src_created_at, src_size)
-  select 'na:' || so.id, public.app_storage_public_base() || '/news-audio/' || public.app_url_encode(so.name), 'audio',
-         so.name, so.created_at, (so.metadata ->> 'size')::bigint
-  from storage.objects so
-  where so.bucket_id = 'news-audio' and so.created_at > now() - interval '3 days'
   on conflict (drive_id) do nothing;
 
   insert into public.app_link_previews (url)
@@ -828,11 +804,11 @@ begin
     and el.content_text ~ 'https?://'
   on conflict (url) do nothing;
 
-  select coalesce(jsonb_agg(jsonb_build_object('drive_id', m.drive_id, 'kind', m.kind, 'source_url', m.source_url)),
-                  '[]'::jsonb) into v_files
+  select coalesce(jsonb_agg(jsonb_build_object('drive_id', m.drive_id, 'kind', m.kind)), '[]'::jsonb) into v_files
   from (
-    select m.drive_id, m.kind, m.source_url from public.app_media m
+    select m.drive_id, m.kind from public.app_media m
     where m.status in ('pending', 'private', 'failed') and m.next_try_at <= now() and m.tries < 40
+      and not (m.kind = 'audio' and m.created_at < now() - interval '1 day')   -- too old to be worth copying
     order by m.created_at desc
     limit p_limit
   ) m;

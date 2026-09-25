@@ -6,8 +6,8 @@
 //    app-media bucket (drive/<id>.<ext>), because Drive links need a Google login unless the file is shared
 //    "anyone with the link", and they don't stream well. Private files are retried with backoff.
 // 2. Ad links → their preview image (og:image / twitter:image, like WhatsApp) copied to app-media/previews/.
-// 3. The engine's news-audio mp3s (Hebrew, French) → copied to app-media/news-audio/, because that bucket keeps them
-//    only about a day. Audio copies older than 8 days are removed (the free archive is 7 days).
+// 3. Audio copies are removed after a day, so the bucket never fills up (Hebrew and French audio is not copied at
+//    all: the app plays it straight from the engine's public news-audio bucket).
 // The queue lives in app_media / app_link_previews (public.app_media_queue). Responds with a summary.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { adminClient, corsHeaders, env, json } from '../_shared/app-common.ts';
@@ -158,26 +158,13 @@ async function downloadDrive(id: string): Promise<{ bytes: Uint8Array; mime: str
   throw new Error('Drive kept answering with a page');
 }
 
-/** A file of the engine's news-audio bucket (public, but kept only about a day). */
-async function downloadPublic(url: string): Promise<{ bytes: Uint8Array; mime: string; name: string | null }> {
-  const res = await fetch(url, { redirect: 'follow' });
-  if (!res.ok) {
-    await res.body?.cancel().catch(() => {});
-    throw new Error(`HTTP ${res.status}`);
-  }
-  const bytes = await readLimited(res, MAX_FILE);
-  return { bytes, mime: mimeOf(res.headers.get('content-type'), new URL(url).pathname), name: null };
-}
-
-/** Queue keys: a Drive file id, or 'na:<object id>' for a news-audio mp3. */
-async function syncFile(db: SupabaseClient, id: string, sourceUrl: string): Promise<string> {
+async function syncFile(db: SupabaseClient, id: string): Promise<string> {
   const { data: row } = await db.from('app_media').select('tries').eq('drive_id', id).maybeSingle();
   const tries = (row?.tries ?? 0) + 1;
-  const newsAudio = id.startsWith('na:');
   try {
-    const { bytes, mime, name } = newsAudio ? await downloadPublic(sourceUrl) : await downloadDrive(id);
+    const { bytes, mime, name } = await downloadDrive(id);
     const kind = kindOf(mime);
-    const path = newsAudio ? `news-audio/${id.slice(3)}.${EXT[mime] ?? 'mp3'}` : `drive/${id}.${EXT[mime] ?? 'bin'}`;
+    const path = `drive/${id}.${EXT[mime] ?? 'bin'}`;
     const { error: upErr } = await db.storage
       .from(BUCKET)
       .upload(path, bytes, { contentType: mime, upsert: true, cacheControl: '31536000' });
@@ -189,7 +176,7 @@ async function syncFile(db: SupabaseClient, id: string, sourceUrl: string): Prom
         kind,
         mime,
         bytes: bytes.byteLength,
-        ...(name ? { file_name: name } : {}),
+        file_name: name,
         storage_path: path,
         public_url: publicUrl(path),
         error: null,
@@ -313,7 +300,8 @@ async function syncLink(db: SupabaseClient, url: string): Promise<string> {
 // --- Cleanup ----------------------------------------------------------------
 
 async function expireOldAudio(db: SupabaseClient): Promise<number> {
-  const before = new Date(Date.now() - 8 * 24 * 3600_000).toISOString(); // the free archive is 7 days
+  // created_at = when the file was queued, i.e. minutes after the engine attached it
+  const before = new Date(Date.now() - 24 * 3600_000).toISOString(); // audio is never kept longer than a day
   const { data } = await db
     .from('app_media')
     .select('drive_id, storage_path')
@@ -346,12 +334,12 @@ Deno.serve(async (req) => {
 
     const { data: queue, error: qErr } = await db.rpc('app_media_queue', { p_limit: 12 });
     if (qErr) throw qErr;
-    const files = (queue?.files ?? []) as { drive_id: string; source_url: string }[];
+    const files = ((queue?.files ?? []) as { drive_id: string }[]).map((f) => f.drive_id);
     const links = ((queue?.links ?? []) as { url: string }[]).map((l) => l.url);
 
     const summary: Record<string, number> = {};
     const count = (k: string) => (summary[k] = (summary[k] ?? 0) + 1);
-    for (const f of files) count(`file_${await syncFile(db, f.drive_id, f.source_url)}`);
+    for (const id of files) count(`file_${await syncFile(db, id)}`);
     for (const url of links) count(`link_${await syncLink(db, url)}`);
     const expired = await expireOldAudio(db);
     if (expired) summary.expired = expired;

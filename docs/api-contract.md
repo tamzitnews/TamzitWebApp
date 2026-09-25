@@ -115,9 +115,10 @@ service, for example, is mostly `daily`). Special updates of the reader's langua
   1. the engine's mp3 in the public **`news-audio`** bucket (`<date>news.mp3` Hebrew, `<date>news-french.mp3`
      French), made minutes before the edition is sent: the file created between 45 minutes before and 2 minutes
      after the edition's first send; when several fit, the one whose length suits the text (≈ 9 Hebrew / 13.5 French
-     characters a second). That bucket keeps files about a day, so `app-media-sync` copies them to
-     `app-media/news-audio/` (kept 8 days) and the copy is used when there is one;
-  2. else the `audio` element (Drive) sent with the edition, copied to `app-media/drive/` (English; the last 2 days).
+     characters a second). It is played straight from that bucket, which the engine empties after about a day,
+     so older editions have no audio;
+  2. else the `audio` element (Drive) sent with the edition, copied to `app-media/drive/` (English only) and
+     removed again after a day. Audio is never kept longer than a day.
 - **Ad** (`app_edition_ad` + `app_ad_json`) → `Feed.ad` for non-premium readers: an `ad`, `donation_campaign` or
   `cta_link` element whose text is in the reader's language, linked to the edition or created from 2 minutes before
   its first send to 20 minutes after its last one (`ad` first, then the newest). `label` = the "> …" line without
@@ -126,8 +127,8 @@ service, for example, is mostly `daily`). Special updates of the reader's langua
   image of `link_url` (`og:image` / `twitter:image`, YouTube thumbnail; copied to `app-media/previews/`), else `null`.
 - **`app-media-sync`** (edge function, `verify_jwt = false`, header `x-app-secret` = `app_settings.push_webhook_secret`)
   is called by `app_media_kick()`: a statement trigger on new `tamzit_edition_elements` rows and the pg_cron job
-  `app-media-sync` every 5 minutes. Its queue is `app_media` (key = Drive id, or `na:<storage object id>` for a
-  news-audio file; `status` pending | ok | private | failed | expired) and `app_link_previews` (`status` pending |
+  `app-media-sync` every 5 minutes. Its queue is `app_media` (key = Drive file id; `status` pending | ok | private |
+  failed | expired) and `app_link_previews` (`status` pending |
   ok | none | failed), filled by `app_media_queue()`. Private and failed files are retried with backoff (5 minutes,
   doubling, at most 3 hours apart).
 
@@ -257,7 +258,7 @@ type Feed = {
 
 - Bucket `app-media` (public): share assets.
 - Bucket `app-builds` (public): Android APKs (`android/tamzit-<version>.apk`).
-- `app-media` (public) also holds `drive/` (copies of Drive files), `news-audio/` (copies of the engine's `news-audio` mp3s, kept 8 days) and `previews/` (link preview images), all written by `app-media-sync`. The engine's `news-audio` bucket (public) is emptied by its own jobs after about a day.
+- `app-media` (public) also holds `drive/` (copies of Drive files: ad images; English audio, removed after a day) and `previews/` (link preview images), all written by `app-media-sync`. Hebrew and French audio is played straight from the engine's public `news-audio` bucket, which the engine empties after about a day.
 
 ## Errors (RPCs)
 
