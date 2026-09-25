@@ -13,7 +13,12 @@ export type Plan = 'free' | 'premium' | 'family';
 export type FeedItem = {
   id: string;
   topic_id: string | null;
+  /** Name shown on single items (search, saved, share); equals subsection ?? section. */
   topic_name: string | null;
+  /** Level-1 heading of the edition the item sits under ("ביטחון", "מהמתרחש בארץ", "Security"); null when unknown. */
+  section?: string | null;
+  /** Level-2 heading inside the section ("החזית הדרומית", "Northern Front"); null when the section has no sub-heading here. */
+  subsection?: string | null;
   level: Level;
   kind: ItemKind;
   community_id: string | null;
@@ -26,7 +31,19 @@ export type FeedItem = {
   saved: boolean;
 };
 
-export type Ad = { id: string; sponsor: string; body: string; link_url: string | null; image_url?: string | null };
+export type Ad = {
+  id: string;
+  /** Overline taken from the ad itself: "המהדורה בחסות", "תוכן שיווקי"; else a generic "פרסומת"/"Sponsored"/"Publicité". */
+  label: string;
+  /** Advertiser / title line when the ad has one, else null. */
+  sponsor: string | null;
+  /** Full ad text, WhatsApp markup removed, paragraphs separated by "\n". */
+  body: string;
+  /** Where the ad leads (the first link in the ad), or null. */
+  link_url: string | null;
+  /** Public https image: the image attached to the ad, else the link's preview image (og:image, like WhatsApp), else null. */
+  image_url: string | null;
+};
 
 export type Audio = {
   id: string;

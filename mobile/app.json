@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "il.org.tamzit.app",
-      "versionCode": 4,
+      "versionCode": 6,
       "adaptiveIcon": {
         "backgroundColor": "#F2FAFD",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

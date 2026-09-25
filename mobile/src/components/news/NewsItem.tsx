@@ -17,6 +17,7 @@ const S = defineStrings({
 /**
  * One news item (design-system NewsItem): topic · time, level meter, headline, body, and the three
  * actions. Presentational: pass handlers (see features/items/actions.ts → useItemActions()).
+ * Under a section heading of the edition pass `showTopic={false}`: the heading already names it.
  */
 export const NewsItem = memo(function NewsItem({
   item,
@@ -24,6 +25,7 @@ export const NewsItem = memo(function NewsItem({
   onShare,
   onFeedback,
   showTime = true,
+  showTopic = true,
   timeLabel,
   last,
 }: {
@@ -32,13 +34,15 @@ export const NewsItem = memo(function NewsItem({
   onShare?: (item: FeedItem) => void;
   onFeedback?: (item: FeedItem) => void;
   showTime?: boolean;
+  /** Show the topic in the "topic · time" line (false under a section heading that already names it). */
+  showTopic?: boolean;
   /** Replaces the time in the "topic · time" line (e.g. "היום", "אתמול", a date). */
   timeLabel?: string;
   last?: boolean;
 }) {
   const { c } = useTheme();
   const s = useStrings(S);
-  const topic = item.kind === 'community' ? item.community_name ?? item.topic_name : item.topic_name;
+  const topic = !showTopic ? null : item.kind === 'community' ? item.community_name ?? item.topic_name : item.topic_name;
   return (
     <View style={{ paddingVertical: space[6], borderBottomWidth: last ? 0 : 1, borderBottomColor: c.line }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[3], marginBottom: space[2] }}>

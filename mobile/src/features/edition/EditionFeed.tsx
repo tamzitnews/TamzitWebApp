@@ -1,5 +1,6 @@
 // Renders one Feed (personal edition or an archived engine edition) as a virtualized list:
-// header → special updates → news (or the empty-level note) → ad → community → good news → end.
+// header → special updates → news under section / sub-section headings, with the ad after the first
+// section (or the empty-level note) → community → good news → end.
 import { useQueryClient } from '@tanstack/react-query';
 import { memo, useCallback, useEffect, useMemo, useRef, type ReactElement } from 'react';
 import { FlatList, Platform, RefreshControl, View, type ListRenderItem, type ViewToken } from 'react-native';
@@ -20,25 +21,71 @@ import { AdSlot } from './AdSlot';
 import { CommunityLabel, EmptyLevel, EndOfEdition, GoodNews } from './Closing';
 import { EditionHeader } from './EditionHeader';
 import { allItems, editionDate, itemCount, useNextEdition } from './editionMeta';
+import { SectionHeading, SubsectionHeading } from './SectionHeading';
 import { SpecialCard } from './SpecialCard';
 import { S } from './strings';
 
 type Row =
   | { key: string; type: 'header' }
   | { key: string; type: 'special'; item: FeedItem }
-  | { key: string; type: 'item'; item: FeedItem; last: boolean }
+  | { key: string; type: 'section'; title: string; afterHeader: boolean }
+  | { key: string; type: 'subsection'; title: string; afterSection: boolean }
+  | { key: string; type: 'item'; item: FeedItem; last: boolean; showTopic: boolean }
   | { key: string; type: 'empty' }
   | { key: string; type: 'ad'; ad: Ad }
   | { key: string; type: 'communityLabel'; name: string }
   | { key: string; type: 'good'; item: FeedItem }
   | { key: string; type: 'end' };
 
+/** Without sections (older editions) the ad follows this many items. */
+const AD_AFTER_ITEMS = 3;
+
+/**
+ * The news part of the edition. feed.items arrive in reading order, grouped by section and then by
+ * sub-section: a level-1 heading opens every new section, a level-2 heading every new non-null
+ * sub-section; the items under them drop the topic from their meta line. The ad goes right after
+ * the first section (before the second level-1 heading). Items without any section (older data)
+ * get no headings, and the ad follows the third item.
+ */
+function pushNews(rows: Row[], items: FeedItem[], ad: Ad | null) {
+  const adRow: Row | null = ad ? { key: `ad:${ad.id}`, type: 'ad', ad } : null;
+  let adPending = !!adRow;
+  const placeAd = () => {
+    if (adRow && adPending) rows.push(adRow);
+    adPending = false;
+  };
+  const sectioned = items.some((it) => !!it.section);
+  let prevSection: string | null = null;
+  let prevSub: string | null = null;
+  let named = 0; // level-1 headings pushed so far
+  items.forEach((it, i) => {
+    const section = sectioned ? it.section ?? null : null;
+    const sub = section ? it.subsection ?? null : null;
+    const newSection = i === 0 || section !== prevSection;
+    if (sectioned && newSection) {
+      // Leaving the first section: the ad closes it.
+      if (named > 0) placeAd();
+      if (section) {
+        rows.push({ key: `sec:${i}:${section}`, type: 'section', title: section, afterHeader: rows[rows.length - 1]?.type === 'header' });
+        named++;
+      }
+    }
+    if (sub && (newSection || sub !== prevSub)) {
+      rows.push({ key: `sub:${i}:${sub}`, type: 'subsection', title: sub, afterSection: rows[rows.length - 1]?.type === 'section' });
+    }
+    prevSection = section;
+    prevSub = sub;
+    rows.push({ key: `i:${it.id}`, type: 'item', item: it, last: false, showTopic: !section });
+    if (!sectioned && i === AD_AFTER_ITEMS - 1) placeAd();
+  });
+  placeAd();
+}
+
 function buildRows(feed: Feed): Row[] {
   const rows: Row[] = [{ key: 'header', type: 'header' }];
   for (const it of feed.special) rows.push({ key: `s:${it.id}`, type: 'special', item: it });
   if (feed.items.length === 0 && feed.special.length === 0) rows.push({ key: 'empty', type: 'empty' });
-  feed.items.forEach((it, i) => rows.push({ key: `i:${it.id}`, type: 'item', item: it, last: i === feed.items.length - 1 }));
-  if (feed.ad) rows.push({ key: `ad:${feed.ad.id}`, type: 'ad', ad: feed.ad });
+  pushNews(rows, feed.items, feed.ad);
   let group: string | null = null;
   feed.community.forEach((it, i) => {
     const name = it.community_name ?? it.topic_name ?? '';
@@ -46,11 +93,15 @@ function buildRows(feed: Feed): Row[] {
       group = name;
       rows.push({ key: `cl:${name}:${i}`, type: 'communityLabel', name });
     }
-    const nextName = feed.community[i + 1]?.community_name ?? feed.community[i + 1]?.topic_name ?? null;
-    rows.push({ key: `c:${it.id}`, type: 'item', item: it, last: nextName !== name });
+    rows.push({ key: `c:${it.id}`, type: 'item', item: it, last: false, showTopic: true });
   });
   if (feed.good_news) rows.push({ key: `g:${feed.good_news.id}`, type: 'good', item: feed.good_news });
   rows.push({ key: 'end', type: 'end' });
+  // An item closes its group (no bottom rule) when a heading, the ad or a closing section follows,
+  // so every group reads as one block.
+  rows.forEach((r, i) => {
+    if (r.type === 'item') r.last = rows[i + 1]?.type !== 'item';
+  });
   return rows;
 }
 
@@ -150,12 +201,17 @@ export function EditionFeed({
           return <EditionHeader type={type} name={name} date={date} count={count} minutes={feed.minutes} onListen={onListen} />;
         case 'special':
           return <SpecialCard item={row.item} onToggleSave={onToggleSave} onShare={onShare} onFeedback={onFeedback} />;
+        case 'section':
+          return <SectionHeading title={row.title} afterHeader={row.afterHeader} />;
+        case 'subsection':
+          return <SubsectionHeading title={row.title} afterSection={row.afterSection} />;
         case 'item':
           return (
             <NewsItem
               item={row.item}
               last={row.last}
               showTime={showTime}
+              showTopic={row.showTopic}
               onToggleSave={onToggleSave}
               onShare={onShare}
               onFeedback={onFeedback}
