@@ -152,9 +152,13 @@ as $$
 $$;
 
 -- Version choice: the reader's language (optionally any language), then their audience, then their
--- style, then 'informative', then any style.
+-- style, then 'informative', then any style. With p_pattern (ILIKE), only versions that match it.
+drop function if exists public.app_pick_version(uuid, text, text, text, boolean);
+drop function if exists public.app_item_json(uuid, text, text, text, uuid, boolean);
+
 create or replace function public.app_pick_version(
-  p_item_id uuid, p_lang text, p_aud text, p_style text, p_any_language boolean default false
+  p_item_id uuid, p_lang text, p_aud text, p_style text, p_any_language boolean default false,
+  p_pattern text default null
 )
 returns table (headline text, body text, style text, language text)
 language sql
@@ -165,6 +169,7 @@ as $$
   select v.headline, v.body, v.style, v.language
   from public.app_item_versions v
   where v.item_id = p_item_id and (v.language = p_lang or p_any_language)
+    and (p_pattern is null or v.headline ilike p_pattern or v.body ilike p_pattern)
   order by (v.language = p_lang) desc,
            (v.audience = p_aud) desc,
            (v.style = p_style) desc,
@@ -176,7 +181,8 @@ $$;
 
 -- One FeedItem (see the contract), or null when the item has no usable version.
 create or replace function public.app_item_json(
-  p_item_id uuid, p_lang text, p_aud text, p_style text, p_uid uuid, p_any_language boolean default false
+  p_item_id uuid, p_lang text, p_aud text, p_style text, p_uid uuid, p_any_language boolean default false,
+  p_pattern text default null
 )
 returns jsonb
 language sql
@@ -200,7 +206,7 @@ as $$
     'saved', exists (select 1 from public.app_saved_items s where s.profile_id = p_uid and s.item_id = i.id)
   )
   from public.app_items i
-  cross join lateral public.app_pick_version(i.id, p_lang, p_aud, p_style, p_any_language) v
+  cross join lateral public.app_pick_version(i.id, p_lang, p_aud, p_style, p_any_language, p_pattern) v
   left join public.app_topics t on t.id = i.topic_id
   left join public.app_communities c on c.id = i.community_id
   where i.id = p_item_id;
@@ -617,7 +623,8 @@ begin
 
   select coalesce(jsonb_agg(x.j order by x.published_at desc), '[]'::jsonb) into v_out
   from (
-    select public.app_item_json(i.id, v_prof.language, v_prof.audience, v_prof.style, v_prof.id) as j, i.published_at
+    select public.app_item_json(i.id, v_prof.language, v_prof.audience, v_prof.style, v_prof.id, false, v_pat) as j,
+           i.published_at
     from public.app_items i
     where i.status = 'published' and i.published_at <= now()
       and exists (select 1 from public.app_item_versions v
@@ -887,8 +894,8 @@ revoke execute on function
   public.app_level_rank(text),
   public.app_is_premium(uuid),
   public.app_plan_info(uuid),
-  public.app_pick_version(uuid, text, text, text, boolean),
-  public.app_item_json(uuid, text, text, text, uuid, boolean),
+  public.app_pick_version(uuid, text, text, text, boolean, text),
+  public.app_item_json(uuid, text, text, text, uuid, boolean, text),
   public.app_pick_audio(text, text, timestamptz, timestamptz, uuid),
   public.app_build_feed(uuid, text, text, timestamptz, timestamptz, uuid[], uuid[], boolean, text, timestamptz, timestamptz, uuid),
   public.app_require_profile()

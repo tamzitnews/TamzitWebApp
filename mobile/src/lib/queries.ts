@@ -52,11 +52,17 @@ export function useUpdateProfile() {
       if (patch.shabbat_city_id) local.shabbatCityId = patch.shabbat_city_id;
       setPrefs(local);
     },
-    onSuccess: () => {
+    onSuccess: (_profile, patch) => {
       qc.invalidateQueries({ queryKey: qk.me });
-      qc.invalidateQueries({ queryKey: ['personal'] });
-      qc.invalidateQueries({ queryKey: ['edition'] });
-      qc.invalidateQueries({ queryKey: qk.archive });
+      // Only settings that change what the edition contains refetch the feeds (not theme / text size).
+      const feedKeys: (keyof PrefsPatch)[] = ['language', 'audience', 'topics', 'communities', 'level_filter', 'style'];
+      if (feedKeys.some((k) => k in patch)) {
+        qc.invalidateQueries({ queryKey: ['personal'] });
+        qc.invalidateQueries({ queryKey: ['edition'] });
+        qc.invalidateQueries({ queryKey: ['search'] });
+        qc.invalidateQueries({ queryKey: qk.saved });
+      }
+      if ('language' in patch || 'audience' in patch) qc.invalidateQueries({ queryKey: qk.archive });
     },
   });
 }
