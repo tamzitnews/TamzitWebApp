@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Inbox } from 'lucide-react-native';
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { FlatList, View } from 'react-native';
 
 import { AppBar, EmptyState, ErrorState, Loading, Screen, T } from '@/components/ui';
@@ -78,23 +78,19 @@ export function MessagesScreen() {
   const { session, loading } = useSession();
   const q = useMessages(!!session);
   const qc = useQueryClient();
-  // Messages that were unread when the screen opened keep their "new" mark until it closes.
-  const [fresh, setFresh] = useState<Set<string>>(new Set());
+  // Unread messages are marked read on the server when the screen opens; the list keeps showing
+  // them as new until the screen closes (the cache is refreshed on the way out).
   const marked = useRef(false);
-
   useEffect(() => {
     if (!q.data || marked.current) return;
-    const unread = q.data.filter((m) => !m.read_at).map((m) => m.id);
     marked.current = true;
+    const unread = q.data.filter((m) => !m.read_at).map((m) => m.id);
     if (!unread.length) return;
-    setFresh(new Set(unread));
     markMessagesRead(unread)
-      .then(() => {
-        qc.invalidateQueries({ queryKey: qk.me });
-        qc.invalidateQueries({ queryKey: messagesKey });
-      })
+      .then(() => qc.invalidateQueries({ queryKey: qk.me }))
       .catch(() => {});
   }, [q.data, qc]);
+  useEffect(() => () => void qc.invalidateQueries({ queryKey: messagesKey }), [qc]);
 
   const header = <AppBar back title={s.title} subtitle={s.subtitle} />;
   if (loading || q.isLoading)
@@ -116,7 +112,7 @@ export function MessagesScreen() {
         data={q.data ?? []}
         keyExtractor={(m) => m.id}
         contentContainerStyle={{ paddingHorizontal: space[5], paddingTop: space[2], paddingBottom: space[8], gap: space[3], flexGrow: 1 }}
-        renderItem={({ item }) => <MessageCard m={item} isNew={fresh.has(item.id)} lang={lang} newLabel={s.new} />}
+        renderItem={({ item }) => <MessageCard m={item} isNew={!item.read_at} lang={lang} newLabel={s.new} />}
         ListEmptyComponent={<EmptyState icon={Inbox} title={s.emptyTitle} text={s.emptyText} />}
         onRefresh={() => q.refetch()}
         refreshing={q.isRefetching}

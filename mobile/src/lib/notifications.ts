@@ -390,10 +390,10 @@ export function useNotificationSync() {
   );
 
   const latest = useRef({ input, city });
-  latest.current = { input, city };
 
   // Profile / city changes.
   useEffect(() => {
+    latest.current = { input, city };
     syncEditionNotifications(input, city);
   }, [input, city]);
 

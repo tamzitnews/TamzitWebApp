@@ -131,7 +131,9 @@ export function useDebouncedSave(save: (patch: PrefsPatch) => Promise<boolean>, 
   const pending = useRef<PrefsPatch | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveRef = useRef(save);
-  saveRef.current = save;
+  useEffect(() => {
+    saveRef.current = save;
+  }, [save]);
 
   const flush = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
