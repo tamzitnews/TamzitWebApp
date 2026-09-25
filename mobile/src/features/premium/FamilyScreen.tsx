@@ -34,6 +34,17 @@ function sendWhatsapp(phone: string, text: string) {
   Linking.openURL(`https://wa.me/${waNumber(phone)}?text=${encodeURIComponent(text)}`).catch(() => {});
 }
 
+function StatusPill({ label, joined }: { label: string; joined?: boolean }) {
+  const { c } = useTheme();
+  return (
+    <View style={{ paddingHorizontal: space[2], borderRadius: radius.pill, backgroundColor: joined ? c.goodSoft : c.surfaceTint }}>
+      <T variant="caption" weight={600} style={{ fontSize: 12, lineHeight: 18 }}>
+        {label}
+      </T>
+    </View>
+  );
+}
+
 const MemberRow = memo(function MemberRow({
   m,
   last,
@@ -62,12 +73,15 @@ const MemberRow = memo(function MemberRow({
       <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: c.surfaceTint, alignItems: 'center', justifyContent: 'center' }}>
         <T variant="label">{name.charAt(0)}</T>
       </View>
-      <View style={{ flex: 1 }}>
-        <T variant="label" numberOfLines={1}>
-          {name}
-        </T>
-        <T variant="caption" color="inkMuted">
-          {`${formatPhone(m.member_phone)} · ${m.status === 'joined' ? s.joined : s.invited}`}
+      <View style={{ flex: 1, gap: 2 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
+          <T variant="label" numberOfLines={1} style={{ flexShrink: 1 }}>
+            {name}
+          </T>
+          <StatusPill label={m.status === 'joined' ? s.joined : s.invited} joined={m.status === 'joined'} />
+        </View>
+        <T variant="caption" color="inkMuted" style={{ writingDirection: 'ltr', alignSelf: 'flex-start' }}>
+          {formatPhone(m.member_phone)}
         </T>
       </View>
       {m.status === 'invited' ? <IconButton icon={MessageCircle} label={s.sendWhatsapp} onPress={() => onWhatsapp(m)} /> : null}
@@ -138,9 +152,14 @@ function OwnerView({ me }: { me: Me }) {
             <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: c.sun, alignItems: 'center', justifyContent: 'center' }}>
               <Icon as={Star} size={18} color="onSun" fill />
             </View>
-            <View style={{ flex: 1 }}>
-              <T variant="label" numberOfLines={1}>{`${me.profile.full_name} (${s.you})`}</T>
-              <T variant="caption" color="inkMuted">{`${formatPhone(me.profile.phone)} · ${s.owner}`}</T>
+            <View style={{ flex: 1, gap: 2 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
+                <T variant="label" numberOfLines={1} style={{ flexShrink: 1 }}>{`${me.profile.full_name} (${s.you})`}</T>
+                <StatusPill label={s.owner} joined />
+              </View>
+              <T variant="caption" color="inkMuted" style={{ writingDirection: 'ltr', alignSelf: 'flex-start' }}>
+                {formatPhone(me.profile.phone)}
+              </T>
             </View>
           </View>
           {members.isLoading ? (
