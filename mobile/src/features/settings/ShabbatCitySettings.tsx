@@ -5,6 +5,7 @@ import { Pressable, View } from 'react-native';
 import { Card, Icon, ListGroup, T } from '@/components/ui';
 import { BUILTIN_CITIES } from '@/features/shabbat/cities';
 import { resolveCity } from '@/features/shabbat/hooks';
+import { useRestPeriodsVersion } from '@/features/shabbat/store';
 import { defineStrings, formatTime, localName, useLang, useStrings } from '@/lib/i18n';
 import { useCities } from '@/lib/queries';
 import { holidayLabel, restPeriods } from '@/lib/shabbat';
@@ -111,6 +112,7 @@ const CityRow = memo(function CityRow({
 function UpcomingTimes({ city }: { city: City }) {
   const s = useStrings(S);
   const lang = useLang();
+  const version = useRestPeriodsVersion(city.id);
   const period = useMemo(() => {
     const now = new Date();
     try {
@@ -118,7 +120,8 @@ function UpcomingTimes({ city }: { city: City }) {
     } catch {
       return null;
     }
-  }, [city]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, version]);
   if (!period) return null;
   const active = period.start <= new Date();
   const holiday = period.kind === 'yomtov' ? holidayLabel(period.holidayName, lang) : null;

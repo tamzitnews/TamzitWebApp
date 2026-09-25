@@ -1,0 +1,12 @@
+{
+  "name": "tamzit-supabase-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Server-side scripts for the Tamzit app backend. Not shipped in the app.",
+  "scripts": {
+    "rest-periods": "node gen_rest_periods.mjs"
+  },
+  "dependencies": {
+    "@hebcal/core": "^6.9.3"
+  }
+}

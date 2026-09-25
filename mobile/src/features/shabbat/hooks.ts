@@ -6,6 +6,7 @@ import { DEFAULT_CITY, restStatus, type RestStatus } from '@/lib/shabbat';
 import type { City } from '@/lib/types';
 import { usePrefs } from '@/state/prefs';
 import { BUILTIN_CITIES } from './cities';
+import { needsRestSync, syncRestPeriods, useRestPeriodsVersion } from './store';
 
 /** Finds a city by id in the server list, then in the built-in copy, then falls back to Jerusalem. */
 export function resolveCity(id: string | null | undefined, cities?: City[]): City {
@@ -28,7 +29,9 @@ export function useShabbatCity(): City {
  */
 export function useRestStatus(city: City): RestStatus {
   const [now, setNow] = useState(() => new Date());
-  const status = useMemo(() => restStatus(city, now), [city, now]);
+  const version = useRestPeriodsVersion(city.id); // recompute when downloaded periods arrive
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const status = useMemo(() => restStatus(city, now), [city, now, version]);
 
   useEffect(() => {
     const boundary = status.resting ? status.endsAt : status.nextStart;
@@ -45,4 +48,27 @@ export function useRestStatus(city: City): RestStatus {
   }, []);
 
   return status;
+}
+
+/**
+ * Keeps the reader's rest periods (app_rest_periods for the Shabbat city) on the device: downloads
+ * them at startup, when the city changes, when the app returns to the foreground and at least daily.
+ * Mount once, inside the providers of the root layout.
+ */
+export function useRestPeriodsSync() {
+  const { id } = useShabbatCity();
+  useEffect(() => {
+    const run = () => {
+      if (needsRestSync(id)) syncRestPeriods(id);
+    };
+    run();
+    const timer = setInterval(run, 3 * 3600_000);
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') run();
+    });
+    return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [id]);
 }

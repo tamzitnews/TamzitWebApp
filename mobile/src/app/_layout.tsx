@@ -7,6 +7,8 @@ import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { useRestPeriodsSync } from '@/features/shabbat/hooks';
+import { useRestPeriodsHydrated } from '@/features/shabbat/store';
 import { useAppFonts } from '@/lib/fonts';
 import { queryClient } from '@/lib/queries';
 import { isRTL } from '@/lib/i18n';
@@ -28,6 +30,7 @@ function usePrefsHydrated() {
 
 function RootStack() {
   const { c, scheme } = useTheme();
+  useRestPeriodsSync();
   return (
     <>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
@@ -45,6 +48,7 @@ function RootStack() {
 export default function RootLayout() {
   const fontsLoaded = useAppFonts();
   const hydrated = usePrefsHydrated();
+  const restHydrated = useRestPeriodsHydrated();
   const language = usePrefs((s) => s.language);
   const [dirReady, setDirReady] = useState(false);
 
@@ -55,7 +59,7 @@ export default function RootLayout() {
     });
   }, [hydrated, language]);
 
-  const ready = fontsLoaded && hydrated && dirReady;
+  const ready = fontsLoaded && hydrated && restHydrated && dirReady;
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
   }, [ready]);

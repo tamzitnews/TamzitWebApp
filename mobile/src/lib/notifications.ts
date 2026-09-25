@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { AppState, Platform } from 'react-native';
 
 import { useShabbatCity } from '@/features/shabbat/hooks';
+import { useRestPeriodsVersion } from '@/features/shabbat/store';
 import { usePrefs } from '@/state/prefs';
 import { useSession } from '@/state/session';
 import { api } from './api';
@@ -374,6 +375,7 @@ export function useNotificationSync() {
   const { session } = useSession();
   const me = useMe(!!session);
   const city = useShabbatCity();
+  const periodsVersion = useRestPeriodsVersion(city.id);
   const localSlots = usePrefs((s) => s.slotTimes);
   const localFrequency = usePrefs((s) => s.frequency);
   const localLanguage = usePrefs((s) => s.language);
@@ -391,11 +393,11 @@ export function useNotificationSync() {
 
   const latest = useRef({ input, city });
 
-  // Profile / city changes.
+  // Profile / city changes, and newly downloaded Shabbat / Yom Tov periods.
   useEffect(() => {
     latest.current = { input, city };
     syncEditionNotifications(input, city);
-  }, [input, city]);
+  }, [input, city, periodsVersion]);
 
   // Foreground, and permission just granted (registerForPush).
   useEffect(() => {
