@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, T } from '@/components/ui';
 import { GlobalPlayerDock } from '@/features/audio';
+import { useNotificationSync } from '@/lib/notifications';
 import { defineStrings, useStrings } from '@/lib/i18n';
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -63,6 +64,8 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 export default function TabsLayout() {
+  // Local edition reminders (skipping Shabbat / Yom Tov), push token registration, notification taps.
+  useNotificationSync();
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => (
         <>

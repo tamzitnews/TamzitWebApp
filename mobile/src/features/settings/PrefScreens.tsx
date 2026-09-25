@@ -15,7 +15,6 @@ import {
 import { api } from '@/lib/api';
 import { useStrings } from '@/lib/i18n';
 import { qk } from '@/lib/queries';
-import { applyDirection } from '@/lib/rtl';
 import type { Audience, Language, LevelFilter, Me, Style } from '@/lib/types';
 import { usePrefs } from '@/state/prefs';
 import { SaveFooter, SettingsPage, ValuesGate } from './components';
@@ -63,7 +62,7 @@ function LanguageInner({ initial }: { initial: ProfileValues }) {
         }
         setPrefs({ language: lang });
         setState('saved');
-        await applyDirection(lang);
+        // The root layout applies the text direction (and reloads on Android) when prefs.language changes.
       } catch {
         setValue(prev);
         setState('error');

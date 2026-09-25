@@ -18,7 +18,7 @@ const S = defineStrings({
   he: {
     trackGeneral: 'כללי',
     trackGeneralDesc: 'המהדורה הרגילה, לכל הגילאים',
-    trackYouth: 'נוער, גילאי 10–15',
+    trackYouth: 'נוער, גילאי \u206610–15\u2069',
     trackYouthDesc: 'ידיעות שנכתבו לבני נוער, בשפה ברורה ובלי פרטים קשים',
     topicsLoading: 'טוענים את הנושאים',
     topicsError: 'לא הצלחנו לטעון את הנושאים.',

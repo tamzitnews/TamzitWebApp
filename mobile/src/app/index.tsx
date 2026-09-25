@@ -3,7 +3,8 @@ import { useEffect } from 'react';
 
 import { ErrorState, Loading, Screen } from '@/components/ui';
 import { defineStrings, useStrings } from '@/lib/i18n';
-import { useCities, useMe } from '@/lib/queries';
+import { useShabbatCity } from '@/features/shabbat/hooks';
+import { useMe } from '@/lib/queries';
 import { restStatus } from '@/lib/shabbat';
 import { usePrefs } from '@/state/prefs';
 import { useSession } from '@/state/session';
@@ -25,9 +26,8 @@ export default function Gate() {
   const { session, loading } = useSession();
   const onboardingDone = usePrefs((s) => s.onboardingDone);
   const me = useMe(!!session);
-  const cities = useCities();
+  const shabbatCity = useShabbatCity();
   const setPrefs = usePrefs((s) => s.set);
-  const shabbatCityId = usePrefs((s) => s.shabbatCityId);
   const s = useStrings(S);
 
   const profile = me.data?.profile;
@@ -56,13 +56,11 @@ export default function Gate() {
     // Offline (or the server is unreachable): local prefs hold a copy of the profile, so an
     // onboarded reader goes straight to the cached edition instead of the welcome screen.
     if (!onboardingDone) return <Screen><ErrorState message={s.offline} onRetry={() => me.refetch()} retryLabel={s.retry} /></Screen>;
-    const localCity = cities.data?.find((x) => x.id === shabbatCityId);
-    if (restStatus(localCity).resting) return <Redirect href="/shabbat" />;
+    if (restStatus(shabbatCity).resting) return <Redirect href="/shabbat" />;
     return <Redirect href="/(tabs)" />;
   }
   if (!profile) return <Redirect href="/welcome" />;
   if (!profile.onboarded) return <Redirect href="/onboarding/language" />;
-  const city = cities.data?.find((x) => x.id === profile.shabbat_city_id);
-  if (restStatus(city).resting) return <Redirect href="/shabbat" />;
+  if (restStatus(shabbatCity).resting) return <Redirect href="/shabbat" />;
   return <Redirect href="/(tabs)" />;
 }
