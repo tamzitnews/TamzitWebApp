@@ -26,7 +26,7 @@ export type FeedItem = {
   saved: boolean;
 };
 
-export type Ad = { id: string; sponsor: string; body: string; link_url: string | null };
+export type Ad = { id: string; sponsor: string; body: string; link_url: string | null; image_url?: string | null };
 
 export type Audio = {
   id: string;
@@ -60,6 +60,8 @@ export type ArchiveEntry = {
   has_audio: boolean;
   read: boolean;
   locked: boolean;
+  /** Source track of the edition. */
+  track?: 'classic' | 'daily' | 'teens' | 'special';
 };
 
 export type Profile = {
