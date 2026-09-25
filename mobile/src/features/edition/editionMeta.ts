@@ -50,8 +50,21 @@ export function useNextEdition(now: Date = new Date()): { name: string; time: st
   const city = useShabbatCity();
   const minute = Math.floor(now.getTime() / 60_000);
   return useMemo(() => {
-    const next = nextEditionAt(slotTimes, frequency, city, new Date(minute * 60_000));
+    const at = new Date(minute * 60_000);
+    const next = nextEditionAt(slotTimes, frequency, city, at);
     if (!next) return null;
-    return { name: EDITION_NAMES[lang][next.type], time: formatTime(next.at) };
+    return { name: EDITION_NAMES[lang][next.type], time: whenLabel(next.at, at, lang) };
   }, [minute, slotTimes, frequency, city, lang]);
+}
+
+const TOMORROW: Record<Language, string> = { he: 'מחר', en: 'tomorrow', fr: 'demain' };
+const LOCALES: Record<Language, string> = { he: 'he-IL', en: 'en-GB', fr: 'fr-FR' };
+
+/** "13:00" today, "מחר, 07:30" tomorrow, "יום ראשון, 07:30" later. */
+function whenLabel(at: Date, now: Date, lang: Language) {
+  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diff = Math.round((day(at) - day(now)) / 86_400_000);
+  if (diff <= 0) return formatTime(at);
+  const prefix = diff === 1 ? TOMORROW[lang] : new Intl.DateTimeFormat(LOCALES[lang], { weekday: 'long' }).format(at);
+  return `${prefix}, ${formatTime(at)}`;
 }
