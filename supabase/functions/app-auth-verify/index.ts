@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
         persona: 'Calming',
         anxiety_level: 'Medium',
         update_frequency: 3,
-        slot_times: ['07:30', '13:00', '20:00'],
+        slot_times: ['10:00', '16:00', '21:30'],
         interests: [],
         communities: pending ? [] : ['jerusalem'],
         language: 'he',

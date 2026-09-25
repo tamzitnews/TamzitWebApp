@@ -4,10 +4,12 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { Audience, Language, LevelFilter, Style, ThemePref } from '@/lib/types';
 
+// Just after the newsroom publishes (weekday medians: morning ~09:20, noon ~15:10, evening and
+// daily ~21:05; 90% are out by 09:55 / 15:42 / 21:10), so the edition is ready when the reminder comes.
 export const DEFAULT_SLOTS: Record<1 | 2 | 3, string[]> = {
-  1: ['20:00'],
-  2: ['08:00', '20:00'],
-  3: ['07:30', '13:00', '20:00'],
+  1: ['21:30'],
+  2: ['10:00', '21:30'],
+  3: ['10:00', '16:00', '21:30'],
 };
 
 /**

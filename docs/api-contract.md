@@ -109,7 +109,7 @@ Elements hang on any of an edition's duplicate rows; the app looks at all of the
 | style | `persona`: `Calming` ↔ calm, `Informative` ↔ informative, `Buddy` ↔ light, `Human` ↔ human; `Contextualizer` / `Executive` read as informative |
 | level_filter | `anxiety_level`: `High` ↔ critical, `Medium` ↔ important, `Low` ↔ general |
 | topics | `interests` |
-| phone, email, birth_year, city, language ('he'), audience ('general'), slot_times ('{07:30,13:00,20:00}'), communities ('{}'), special_push (true), edition_push (true), headline_in_push (false), text_scale (1), theme ('system'), shabbat_city_id ('jerusalem'), onboarded (false), updated_at, last_seen_at | added columns of the same names (defaults in brackets; `phone` unique when set) |
+| phone, email, birth_year, city, language ('he'), audience ('general'), slot_times ('{10:00,16:00,21:30}'), communities ('{}'), special_push (true), edition_push (true), headline_in_push (false), text_scale (1), theme ('system'), shabbat_city_id ('jerusalem'), onboarded (false), updated_at, last_seen_at | added columns of the same names (defaults in brackets; `phone` unique when set) |
 | created_at | `created_at` |
 
 The profile JSON (`app_me().profile`, `app_update_profile()`) keeps the contract shape:

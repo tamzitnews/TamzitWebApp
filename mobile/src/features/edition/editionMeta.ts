@@ -6,12 +6,17 @@ import { nextEditionAt, plannedEditionName } from '@/lib/notifications';
 import type { EditionType, Feed, FeedItem, Language } from '@/lib/types';
 import { usePrefs } from '@/state/prefs';
 
-/** Edition type of a personal edition: a motzash / erev-shabbat edition in the window wins, else the slot. */
+/**
+ * Edition type of a personal edition: a motzash / erev-shabbat edition in the window wins; otherwise
+ * the newest engine edition in it (edition_types is newest first), so the name matches the content
+ * even when the newsroom publishes later than the reader's slot; else the slot.
+ */
 export function personalEditionType(feed: Feed | undefined, frequency: 1 | 2 | 3, slotIndex: number): EditionType {
   const t = feed?.edition_types ?? [];
   if (t.includes('motzash')) return 'motzash';
   if (t.includes('erev_shabbat')) return 'erev_shabbat';
-  return slotEditionType(frequency, slotIndex);
+  const newest = t.find((x) => x !== 'special');
+  return newest ?? slotEditionType(frequency, slotIndex);
 }
 
 /** Edition type of one engine edition (archive). */
