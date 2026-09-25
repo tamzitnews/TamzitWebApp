@@ -1,9 +1,7 @@
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@400;500;600;700;800;900&display=swap");
-
 /* ---------- base ---------- */
-body { margin: 0; font-family: var(--font-sans, "Noto Sans Hebrew", sans-serif); background: var(--surface); color: var(--ink); -webkit-font-smoothing: antialiased; }
+body { margin: 0; font-family: var(--font-sans, "Rubik", "Noto Sans Hebrew", sans-serif); background: var(--surface); color: var(--ink); -webkit-font-smoothing: antialiased; }
 .tz, .tz * { box-sizing: border-box; }
-.tz { font-family: var(--font-sans, "Noto Sans Hebrew", sans-serif); color: var(--ink); }
+.tz { font-family: var(--font-sans, "Rubik", "Noto Sans Hebrew", sans-serif); color: var(--ink); }
 .tz-row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; padding: var(--space-5); }
 .tz-stack { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-5); }
 .tz-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
