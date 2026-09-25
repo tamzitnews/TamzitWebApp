@@ -54,10 +54,12 @@ export const ShareCard = forwardRef<View, { item: FeedItem; width: number; rtl: 
       ) : (
         <View style={{ height: 16 * k }} />
       )}
-      <Text numberOfLines={4} style={{ fontFamily: fonts[800], fontSize: 24 * k, lineHeight: 32 * k, color: L.ink }}>
-        {item.headline}
-      </Text>
-      <Text numberOfLines={7} style={{ fontFamily: fonts[400], fontSize: 16 * k, lineHeight: 26 * k, color: L.ink }}>
+      {item.headline ? (
+        <Text numberOfLines={4} style={{ fontFamily: fonts[800], fontSize: 24 * k, lineHeight: 32 * k, color: L.ink }}>
+          {item.headline}
+        </Text>
+      ) : null}
+      <Text numberOfLines={item.headline ? 7 : 12} style={{ fontFamily: fonts[400], fontSize: 16 * k, lineHeight: 26 * k, color: L.ink }}>
         {item.body}
       </Text>
       <View style={{ marginTop: 'auto', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>

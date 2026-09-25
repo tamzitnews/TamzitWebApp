@@ -47,9 +47,11 @@ export const NewsItem = memo(function NewsItem({
         </T>
         <LevelMeter level={item.level} showLabel={item.level === 'critical'} />
       </View>
-      <T variant="headline" style={{ marginBottom: space[2] }} accessibilityRole="header">
-        {item.headline}
-      </T>
+      {item.headline ? (
+        <T variant="headline" style={{ marginBottom: space[2] }} accessibilityRole="header">
+          {item.headline}
+        </T>
+      ) : null}
       <T variant="body" scaled selectable>
         {item.body}
       </T>

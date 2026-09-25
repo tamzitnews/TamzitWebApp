@@ -50,9 +50,11 @@ export const SpecialCard = memo(function SpecialCard({
         </View>
         <LevelMeter level={item.level} />
       </View>
-      <T variant="headline" style={{ marginBottom: space[2] }} accessibilityRole="header">
-        {item.headline}
-      </T>
+      {item.headline ? (
+        <T variant="headline" style={{ marginBottom: space[2] }} accessibilityRole="header">
+          {item.headline}
+        </T>
+      ) : null}
       <T variant="body" scaled selectable>
         {item.body}
       </T>
