@@ -37,7 +37,7 @@ scripts/upload-apk.sh               # מעלה את ה־APK האחרון מ־dis
 - גרסה קבועה: `$SUPABASE_URL/storage/v1/object/public/app-builds/android/tamzit-<version>-<versionCode>.apk`
 - תמיד האחרונה: `$SUPABASE_URL/storage/v1/object/public/app-builds/android/tamzit-latest.apk`
 
-הקישור הנוכחי: <https://difiipnhpujbwhpyownr.supabase.co/storage/v1/object/public/app-builds/android/tamzit-latest.apk>
+הקישור הנוכחי: <https://opoqjzjmretyvomuhvct.supabase.co/storage/v1/object/public/app-builds/android/tamzit-latest.apk>
 
 מגבלת הקובץ בפרויקט Supabase היא 50MB, וה־APK שוקל כ־45MB (הספריות הנייטיב דחוסות, `useLegacyPackaging`).
 אם הוא יעבור את המגבלה ההעלאה תיכשל. הפתרון הבא בתור: להפעיל R8 ב־`expo-build-properties`
