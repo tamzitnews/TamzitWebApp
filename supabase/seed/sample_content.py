@@ -1600,3 +1600,38 @@ HE_ONLY_PARAMS = {
     'gn_street_library': [dict(city='נתניה')],
     'gn_beach_cleanup': [dict(region='בחופי חיפה')],
 }
+
+_MORE_HE_ONLY = {
+    'heat': [dict(day='מחר', max='34', region='בשרון ובשפלה'), dict(day='היום', max='38', region='בערבה ובאילת'),
+             dict(day='היום', max='31', region='בגליל העליון')],
+    'water_outage': [dict(city='נתניה', area='בשכונות המזרחיות', until='14:00'),
+                     dict(city='בית שמש', area='בשכונות הוותיקות', until='18:30')],
+    'bus_disruption': [dict(city='אשדוד', until='11:30')],
+    'road_closure': [dict(road='כביש 90', section='בין עין גדי לנווה זוהר', hours='21:00–05:00'),
+                     dict(road='כביש 65', section='בין עפולה לצומת גולני', hours='22:00–04:00')],
+    'rail_works': [dict(route='בין בית שמש לירושלים', when='בלילה שבין חמישי לשישי')],
+    'sms_scam': [dict(topic='זכייה בהגרלה'), dict(topic='עדכון פרטי חשבון בנק')],
+    'home_front_drill': [dict(region='באזור הנגב', time='11:30'), dict(region='באזור השרון', time='10:00')],
+    'space_image': [dict(shape='סוס ים')],
+    'youth_team': [dict(sport='בטניס', stage='לחצי הגמר')],
+    'night_run': [dict(city='באר שבע', hours='19:00–22:30')],
+    'refund_ruling': [dict(company='חברת סלולר'), dict(company='רשת מרכולים')],
+    'first_rain': [dict(region='בגליל המערבי', when='בסוף השבוע הבא')],
+    'school_registration': [dict(what='לחטיבות הביניים'), dict(what='לגני טרום חובה')],
+    'walking_study': [dict(minutes='30')],
+    'planned_water': [dict(city='חולון', night='הלילה', hours='23:00–05:00'),
+                      dict(city='רעננה', night='בלילה שבין שלישי לרביעי', hours='22:30–04:30'),
+                      dict(city='צפת', night='הלילה', hours='00:00–05:00')],
+    'power_maintenance': [dict(city='אשקלון', day='ביום שני', hours='08:00–11:00'),
+                          dict(city='הרצליה', day='מחר', hours='09:30–12:30'),
+                          dict(city='אילת', day='ביום רביעי', hours='06:00–09:00')],
+    'light_rail': [dict(city='תל אביב־יפו', street='דרך בגין', weeks='שלושה שבועות'),
+                   dict(city='חיפה', street='רחוב הרצל', weeks='חודש')],
+    'autumn': [dict(day='הלילה')],
+    'dust': [dict(day='בדרום, היום')],
+    'sea_warning': [dict(day='בשבת')],
+    'football_round': [dict(n='השלישי'), dict(n='השני')],
+    'para_medal': [dict(sport='בריצה')],
+}
+for _k, _v in _MORE_HE_ONLY.items():
+    HE_ONLY_PARAMS.setdefault(_k, []).extend(_v)

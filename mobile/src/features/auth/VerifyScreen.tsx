@@ -3,7 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Platform, TextInput, View } from 'react-native';
+import { TextInput, View } from 'react-native';
 
 import { AppBar, Button, Screen, T } from '@/components/ui';
 import { useOnboardingProgress } from '@/features/onboarding/progress';
@@ -226,8 +226,6 @@ export function VerifyScreen() {
             textAlign: 'center',
             writingDirection: 'ltr',
             fontVariant: ['tabular-nums'],
-            // The border already shows focus and errors; no browser outline on web.
-            ...(Platform.OS === 'web' ? { outlineWidth: 0 } : null),
           }}
         />
         {error ? <FormError message={errors[error]} /> : null}

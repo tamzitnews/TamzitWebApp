@@ -231,7 +231,7 @@ def main():
 
     gn_for = {}  # (day, half) -> item
     for day in sorted({e['day'] for e in editions}):
-        full = day >= full_from
+        full = full_from <= day <= today
         halves = ['am', 'pm'] if full else ['all']
         for h in halves:
             inst = pick_gn(day, full)
@@ -244,8 +244,8 @@ def main():
 
     # ---- news per he/general edition
     for e in editions:
-        day, full = e['day'], e['day'] >= full_from
-        n = 7 if e['type'] in ('erev_shabbat', 'motzash') else (5 if e['type'] == 'noon' else 6)
+        day, full = e['day'], full_from <= e['day'] <= today
+        n = rng.choice([6, 7]) if e['type'] in ('erev_shabbat', 'motzash') else (5 if e['type'] == 'noon' else rng.choice([5, 6]))
         chosen = []
         # explicit holiday items
         for inst in news_pool:
@@ -344,7 +344,7 @@ def main():
 
     # youth editions: morning + evening (erev on Friday) on the full days
     by_ext = {i['ext']: i for i in items}
-    for e in [r for r in ed_rows if r['lang'] == 'he' and r['day'] >= full_from]:
+    for e in [r for r in ed_rows if r['lang'] == 'he' and full_from <= r['day'] <= today]:
         if e['type'] not in ('morning', 'evening', 'erev_shabbat'):
             continue
         same_day = [r for r in ed_rows if r['lang'] == 'he' and r['day'] == e['day']]
@@ -460,7 +460,7 @@ def make_audio(now, ed_rows, items, full_from, special_at, sp_item):
         if not morning:
             continue
         at = local(day, 7, 0)
-        news = [by_ext[x] for x in morning['item_exts'] if by_ext[x]['kind'] == 'news'][:4]
+        news = [by_ext[x] for x in morning['item_exts'] if by_ext[x]['kind'] == 'news'][:3]
         gn = [by_ext[x] for x in morning['item_exts'] if by_ext[x]['kind'] == 'good_news']
         parts = [f'שלום, זו המהדורה הקולית של תמצית החדשות, {HE_DAYS[day.weekday()]}, {day.day} ב{day.month}. '
                  'זו מהדורה לדוגמה.']

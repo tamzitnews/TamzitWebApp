@@ -45,24 +45,26 @@ export const EditionHeader = memo(function EditionHeader({
       <T variant="display" accessibilityRole="header">
         {name}
       </T>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: space[3],
-          marginTop: space[2],
-          minHeight: 44,
-        }}>
-        <T variant="caption" color="inkMuted" style={{ flexShrink: 1 }}>
-          {count > 0 ? s.meta(count, minutes) : ''}
-        </T>
-        {onListen ? (
-          <Button variant="secondary" icon={Headphones} onPress={onListen}>
-            {s.listen}
-          </Button>
-        ) : null}
-      </View>
+      {count > 0 || onListen ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: space[3],
+            marginTop: space[2],
+            minHeight: 44,
+          }}>
+          <T variant="caption" color="inkMuted" style={{ flexShrink: 1 }}>
+            {count > 0 ? s.meta(count, minutes) : ''}
+          </T>
+          {onListen ? (
+            <Button variant="secondary" icon={Headphones} onPress={onListen}>
+              {s.listen}
+            </Button>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 });

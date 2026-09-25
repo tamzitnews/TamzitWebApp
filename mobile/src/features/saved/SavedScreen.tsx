@@ -14,6 +14,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space } from '@/theme/tokens';
 import { LiveNewsItem } from './LiveNewsItem';
 import { SavedStrings } from './strings';
+import { SwipeToRemove } from './SwipeToRemove';
 import { removeFromSaved, useSavedItems } from './useSavedItems';
 import { useStableItemActions } from './useStableItemActions';
 
@@ -48,16 +49,18 @@ export function SavedScreen() {
   const renderItem: ListRenderItem<FeedItem> = useCallback(
     ({ item, index }) => (
       <Animated.View exiting={rowExit}>
-        <LiveNewsItem
-          item={item}
-          last={index === count - 1}
-          onToggleSave={onToggleSave}
-          onShare={actions.share}
-          onFeedback={actions.feedback}
-        />
+        <SwipeToRemove label={s.remove} onRemove={() => onToggleSave({ ...item, saved: true })}>
+          <LiveNewsItem
+            item={item}
+            last={index === count - 1}
+            onToggleSave={onToggleSave}
+            onShare={actions.share}
+            onFeedback={actions.feedback}
+          />
+        </SwipeToRemove>
       </Animated.View>
     ),
-    [count, onToggleSave, actions],
+    [count, onToggleSave, actions, s.remove],
   );
 
   const [pulling, setPulling] = useState(false);

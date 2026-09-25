@@ -1,7 +1,7 @@
 // City of residence for registration: a searchable list of Israeli cities (app_cities), or free text.
 import { Check, ChevronDown, PenLine, Search, X } from 'lucide-react-native';
 import { memo, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Platform, Pressable, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Pressable, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Icon, IconButton, T, useIsRTL } from '@/components/ui';
@@ -124,10 +124,7 @@ function CityPicker({ value, onPick, onClose }: { value: CityValue | null; onPic
                 if (filtered.length === 1) pickCity(filtered[0]);
                 else if (typed) onPick({ name: typed, id: null });
               }}
-              style={[
-                { flex: 1, minHeight: 48, color: c.ink, fontFamily: fonts[400], fontSize: 17, textAlign: rtl ? 'right' : 'left' },
-                Platform.OS === 'web' ? { outlineWidth: 0 } : null,
-              ]}
+              style={{ flex: 1, minHeight: 48, color: c.ink, fontFamily: fonts[400], fontSize: 17, textAlign: rtl ? 'right' : 'left' }}
             />
           </View>
         </View>
