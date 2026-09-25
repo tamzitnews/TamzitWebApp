@@ -17,14 +17,21 @@ created is named `app_…`. Other tables in the project (`news_items`, `news_sum
   headline only when it is non-empty (structured stories and bullets that start with `*Title:*` have one).
 - **`style` is `"informative"`** for parsed items (the WhatsApp text has one version). Structured stories follow
   the reader's style when the engine wrote that version.
-- **`topic_name` is the edition's section title** in the edition's language (e.g. "החזית הדרומית",
-  "Southern Front"); `topic_id` is the mapped app topic or `null` ("מהמתרחש בארץ" has none). Items with
-  `topic_id = null` are shown to every reader.
+- **Two heading levels**: `section` is the level-1 heading ("ביטחון", "מהמתרחש בארץ", "Security") and
+  `subsection` the level-2 heading inside it ("החזית הדרומית", "Southern Front") or `null`. The security fronts
+  are grouped under one security section whatever the edition wrote ("📌 החזית הדרומית", "📌 ביטחון - החזית
+  הדרומית", "Le front sud"). `Feed.items` arrive in reading order, grouped by section then subsection; the app
+  opens a heading wherever they change. `topic_name` = `subsection ?? section`; `topic_id` is the mapped app
+  topic or `null` ("מהמתרחש בארץ" has none). Items with `topic_id = null` are shown to every reader.
 - **`community` is `[]`** until the engine writes community stories. **`special`** has items only when a
   special update (`edition_type 'special_update'`) falls in the window.
-- **`audio.audio_url`** is a Google Drive direct-download link (`https://drive.google.com/uc?export=download&id=…`);
-  `duration_sec` is `null`. **`ad`** has a new optional `image_url` (Drive direct link) and `sponsor` is the ad's
-  first bold line (or "פרסומת" / "Sponsored" / "Publicité").
+- **`audio.audio_url`** is always a playable public https link on Supabase Storage, never a Drive link
+  (see "Audio and ads" below); `duration_sec` is `null`. `audio` is `null` when there is no playable audio.
+- **`ad`** is `{ id, label, sponsor, body, link_url, image_url }`: `label` is the ad's own overline ("המהדורה
+  בחסות", "תוכן שיווקי"; else "פרסומת" / "Sponsored" / "Publicité"), `sponsor` a leading all-bold line or `null`,
+  `body` the full text, `link_url` its first link, `image_url` the attached image or the link's preview image
+  (like WhatsApp) or `null`. The app shows it right after the first section; tapping the card or the image opens
+  `link_url`.
 - `app_archive` rows have a new field `track` (`classic` | `daily` | `teens` | `special`).
 - **No direct table access for profiles or editions**: `app_profiles`, `app_editions`, `app_items`, `app_audio`,
   `app_ads` no longer exist. Read the profile with `app_me()` and change it with `app_update_profile()`.
@@ -78,26 +85,51 @@ service, for example, is mostly `daily`). Special updates of the reader's langua
   (`{ "he": { "general": { "calm": { "headline", "body" }, … } }, "en": … }`): reader's language → audience
   (youth falls back to general) → style → `informative` → any style; `title`/`summary` are the Hebrew base version.
 - Otherwise the items are **parsed from `main_text`** (server side, `app_parse_edition`): sections
-  `📌 *_title:_*` (also `📌 title:`, `⬆️ *title:*`, `> *title:*`) → `topic_name`; each `• ` bullet with its
+  `📌 *_title:_*` (also `📌 title:`, `📌 title`, `⬆️ *title:*`, `> *title:*`) → `section` / `subsection`
+  (`app_section_split`: "ביטחון - X" → ביטחון / X; "החזית …", "חזית איו"ש" → ביטחון / title; "… Front", "Yehuda and
+  Shomron" → Security / title; "Le front …", "Au nord" → Sécurité / title; "ביטחון"/"Security" alone → that section
+  without a subsection; anything else → the title / `null`); each `• ` bullet with its
   continuation lines → one item; the good-news section ("ונסיים בטוב", "On a Positive Note", "Et pour finir sur une
   bonne note", …) → `good_news`; the header, promo blocks between `•   •   •` separators, "תוכן שיווקי"/sponsored
   blocks, notices ("קוראים יקרים"), credits and link-only lines are skipped; WhatsApp markup (`*bold*`, `_italic_`,
   `~strike~`) is removed. Parsed items: level `important` (`critical` in special updates), style `informative`,
   headline = a leading `*bold lead-in:*` if present, else `""`, id `e<edition id>-<n>`. A special update is one
   item (its text).
-- `topic_id` of a parsed section: the first `app_topics` row (by `sort`) whose `keywords` occur in the section
-  title ("החזית הדרומית" → `security`, "מדיניות, משפט ופוליטיקה" → `politics`, "מסביב לעולם" → `world`, …).
+- `topic_id` of a parsed item: the first `app_topics` row (by `sort`) whose `keywords` occur in
+  "section / subsection" ("ביטחון / החזית הדרומית" → `security`, "מדיניות, משפט ופוליטיקה" → `politics`,
+  "מסביב לעולם" → `world`, …).
 
-### Audio and ads: `tamzit_edition_elements` (engine, existing)
+### Audio and ads: `tamzit_edition_elements` and the `news-audio` bucket (engine, existing)
 
 `tamzit_edition_elements(id, created_at, edition_id → tamzit_editions, element_type 'audio'|'ad'|'donation_campaign'|'cta_link'|'story', content_text, media_id, story_id, position)`.
-Elements hang on any of an edition's duplicate rows; the app looks at all of them.
+`media_id` is a Google Drive link. Two things the engine does that the app works around:
 
-- `audio` → `Feed.audio`: `audio_url` = the Drive link converted to a direct download link, `title` =
-  "האזנה · <edition title>" (or `content_text`), `duration_sec` = `null`.
-- `ad` (and `cta_link`) → `Feed.ad` for non-premium readers: `sponsor` = first all-bold line (else a generic
-  label), `body` = the text without markup, the "> המהדורה בחסות:" line and link-only lines, `link_url` = first URL,
-  `image_url` = the Drive image as a direct link. `donation_campaign` is not shown in the feed.
+- **Drive files are private** (a Google login is needed), so the app never gets a Drive link. The edge function
+  `app-media-sync` copies what is needed into the public `app-media` bucket once the files can be read (shared
+  "anyone with the link"), and until then the audio / image is simply left out.
+- **`edition_id` is sometimes another language's row**: the engine sends the Hebrew and English editions at the
+  same second and occasionally links an element to the other one. So elements are matched to an edition by
+  language and send time (`app_edition_ad`, `app_edition_audio`), not by `edition_id` alone.
+
+- **Audio** (`app_edition_audio`) → `Feed.audio`, `title` = "האזנה · <edition title>":
+  1. the engine's mp3 in the public **`news-audio`** bucket (`<date>news.mp3` Hebrew, `<date>news-french.mp3`
+     French), made minutes before the edition is sent: the file created between 45 minutes before and 2 minutes
+     after the edition's first send; when several fit, the one whose length suits the text (≈ 9 Hebrew / 13.5 French
+     characters a second). That bucket keeps files about a day, so `app-media-sync` copies them to
+     `app-media/news-audio/` (kept 8 days) and the copy is used when there is one;
+  2. else the `audio` element (Drive) sent with the edition, copied to `app-media/drive/` (English; the last 2 days).
+- **Ad** (`app_edition_ad` + `app_ad_json`) → `Feed.ad` for non-premium readers: an `ad`, `donation_campaign` or
+  `cta_link` element whose text is in the reader's language, linked to the edition or created from 2 minutes before
+  its first send to 20 minutes after its last one (`ad` first, then the newest). `label` = the "> …" line without
+  the colon ("המהדורה בחסות"), `sponsor` = a leading all-bold line or `null`, `body` = the rest without markup and
+  link-only lines, `link_url` = the first URL, `image_url` = the attached Drive image once copied, else the preview
+  image of `link_url` (`og:image` / `twitter:image`, YouTube thumbnail; copied to `app-media/previews/`), else `null`.
+- **`app-media-sync`** (edge function, `verify_jwt = false`, header `x-app-secret` = `app_settings.push_webhook_secret`)
+  is called by `app_media_kick()`: a statement trigger on new `tamzit_edition_elements` rows and the pg_cron job
+  `app-media-sync` every 5 minutes. Its queue is `app_media` (key = Drive id, or `na:<storage object id>` for a
+  news-audio file; `status` pending | ok | private | failed | expired) and `app_link_previews` (`status` pending |
+  ok | none | failed), filled by `app_media_queue()`. Private and failed files are retried with backoff (5 minutes,
+  doubling, at most 3 hours apart).
 
 ### Profiles: `user_preferences` (existing) + added columns
 
@@ -151,7 +183,9 @@ edge-function tables) is not readable by clients: content and the profile come f
 type FeedItem = {
   id: string;                     // 'e<edition id>-<n>' (parsed) or 's<story id>' (structured)
   topic_id: string | null;        // app topic, or null (shown to everyone)
-  topic_name: string | null;      // parsed: the section title in the edition's language; story: topic name
+  topic_name: string | null;      // subsection ?? section (parsed); story: topic name
+  section: string | null;         // level-1 heading ("ביטחון", "מהמתרחש בארץ", "Security"); story: topic name
+  subsection: string | null;      // level-2 heading ("החזית הדרומית") or null
   level: 'critical'|'important'|'general';
   kind: 'news'|'good_news'|'community'; community_id: string | null; community_name: string | null;
   headline: string;               // often '' for parsed items
@@ -168,7 +202,7 @@ type Feed = {
   special: FeedItem[];                              // items of special updates in the window (often [])
   community: FeedItem[];                            // kind='community' for the user's communities (often [])
   good_news: FeedItem | null;                       // latest good-news item in the window
-  ad: { id: string; sponsor: string; body: string; link_url: string | null; image_url: string | null } | null;  // null for premium
+  ad: { id: string; label: string; sponsor: string | null; body: string; link_url: string | null; image_url: string | null } | null;  // null for premium
   audio: { id: string; kind: 'edition'|'flash'; title: string; audio_url: string; duration_sec: number | null; published_at: string } | null;
   minutes: number;                                  // estimated reading time (words / 180, min 1)
   is_premium: boolean;
@@ -223,7 +257,7 @@ type Feed = {
 
 - Bucket `app-media` (public): share assets.
 - Bucket `app-builds` (public): Android APKs (`android/tamzit-<version>.apk`).
-- Edition audio is served from Google Drive links in `tamzit_edition_elements` (the engine's `news-audio` bucket is emptied daily by its own jobs).
+- `app-media` (public) also holds `drive/` (copies of Drive files), `news-audio/` (copies of the engine's `news-audio` mp3s, kept 8 days) and `previews/` (link preview images), all written by `app-media-sync`. The engine's `news-audio` bucket (public) is emptied by its own jobs after about a day.
 
 ## Errors (RPCs)
 
@@ -235,10 +269,10 @@ RPC errors are raised with SQLSTATE `P0001` and a stable code in `error.message`
 ## Feed rules (as implemented)
 
 - Only editions with `created_at <= now()` count. Duplicate rows collapse as described above.
-- `items`: `kind = 'news'`, ordered by level, then `published_at` desc, then position; capped at `max_items` (general items drop first).
+- `items`: `kind = 'news'`; the personal edition keeps the top `max_items` by level, then `published_at` desc, then position (general items drop first). They are returned grouped for reading: sections in the order they first appear (newest edition first, weather always last), subsections likewise inside their section, then level, edition (newest first) and position. An archived edition keeps its own order.
 - `good_news`: the newest good-news item of the window; if none, the newest of the reader's editions in the 48 hours before `p_to`.
-- `ad`: free readers only; the ad (or cta_link) of the newest edition in the feed that has one.
-- `audio`: the audio of the newest edition in the feed that has one; for the personal edition, otherwise the newest audio of the language in the 24 hours before `p_to`. `has_audio` in `app_archive` = the edition has an audio element.
+- `ad`: free readers only; the ad (`ad`, `donation_campaign` or `cta_link`, in the reader's language) of the newest edition in the feed that has one. The app shows it right after the first section.
+- `audio`: the playable audio (`app_edition_audio`) of the newest edition in the feed that has one; for the personal edition, otherwise that of the newest of the reader's editions in the 24 hours before `p_to`. `has_audio` in `app_archive` = the edition has playable audio.
 - `minutes` = ceil(words of headline + body of items, special, community and good news / 180), at least 1.
 - `app_archive.item_count` counts the edition's `news` items; `read` = an `app_reads` row with `edition_key = <edition id>`.
 - Retention: the engine's maintenance jobs delete `processed_stories` older than 14 days (their story elements go with them); such editions fall back to the parsed text, and saved items fall back to `snapshot`.
