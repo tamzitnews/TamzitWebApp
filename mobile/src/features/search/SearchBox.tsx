@@ -1,6 +1,6 @@
 import { Search, X } from 'lucide-react-native';
-import type { Ref } from 'react';
-import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
+import { useState, type Ref } from 'react';
+import { ActivityIndicator, Platform, Pressable, TextInput, View } from 'react-native';
 
 import { Icon, useIsRTL } from '@/components/ui';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -16,7 +16,9 @@ export function SearchBox({
   placeholder,
   clearLabel,
   busy,
+  busyLabel,
   autoFocus,
+  editable = true,
 }: {
   ref?: Ref<TextInput>;
   value: string;
@@ -26,22 +28,26 @@ export function SearchBox({
   placeholder: string;
   clearLabel: string;
   busy?: boolean;
+  busyLabel?: string;
   autoFocus?: boolean;
+  editable?: boolean;
 }) {
   const { c } = useTheme();
   const rtl = useIsRTL();
+  // The pill's border shows focus (brand, thicker), replacing the browser outline on web.
+  const [focused, setFocused] = useState(false);
   return (
     <View
       style={{
         minHeight: 48,
         borderRadius: radius.pill,
-        borderWidth: 1.5,
-        borderColor: c.lineStrong,
+        borderWidth: focused ? 2 : 1.5,
+        borderColor: focused ? c.brand : c.lineStrong,
         backgroundColor: c.surfaceRaised,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingStart: 14,
-        paddingEnd: space[1],
+        paddingStart: focused ? 13.5 : 14,
+        paddingEnd: focused ? 3.5 : space[1],
         gap: space[2],
       }}>
       <Icon as={Search} size={20} color="inkMuted" />
@@ -50,10 +56,13 @@ export function SearchBox({
         value={value}
         onChangeText={onChangeText}
         onSubmitEditing={onSubmit}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         accessibilityLabel={label}
         placeholder={placeholder}
         placeholderTextColor={c.inkMuted}
         autoFocus={autoFocus}
+        editable={editable}
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="search"
@@ -70,10 +79,11 @@ export function SearchBox({
           fontSize: 16,
           textAlign: rtl ? 'right' : 'left',
           writingDirection: 'auto',
+          ...(Platform.OS === 'web' ? { outlineWidth: 0 } : null),
         }}
       />
-      {busy ? <ActivityIndicator size="small" color={c.brand} /> : null}
-      {value.length > 0 ? (
+      {busy ? <ActivityIndicator size="small" color={c.brand} accessibilityLabel={busyLabel} /> : null}
+      {value.length > 0 && editable ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={clearLabel}

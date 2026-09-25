@@ -122,14 +122,17 @@ export function usePersonalEdition() {
     if (!syncWindow()) await queryRef.current.refetch();
   }, [syncWindow]);
 
-  // What to show: the live result; else the saved edition when the request failed or is paused offline.
+  // What to show: the live result (kept in memory even when a refetch fails); else the saved
+  // edition when the request failed or is paused offline. The line "אין חיבור" shows in both cases.
   const paused = query.fetchStatus === 'paused';
-  const failed = query.isError || (paused && !query.data);
-  const offline = !query.data && failed && !!cache;
-  const feed: Feed | undefined = query.data ?? (offline ? cache!.feed : undefined);
-  const slotIndex = query.data ? win.slotIndex : offline ? cache!.slotIndex : win.slotIndex;
+  const failed = query.isError || paused;
+  const live = query.data && !query.isPlaceholderData ? query.data : undefined;
+  const fallback = failed && !live ? cache : null;
+  const feed: Feed | undefined = live ?? fallback?.feed ?? query.data;
+  const offline = failed && !!feed;
+  const slotIndex = fallback ? fallback.slotIndex : win.slotIndex;
   const type = personalEditionType(feed, frequency, slotIndex);
-  const readTo = query.data ? toISO : offline ? cache!.to : toISO;
+  const readTo = fallback ? fallback.to : toISO;
 
   return {
     feed,

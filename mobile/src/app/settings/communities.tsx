@@ -1,10 +1,3 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { CommunitiesSettings } from '@/features/settings/PrefScreens';
 
-// PLACEHOLDER — replaced by the owning agent.
-export default function SettingsCommunities() {
-  return (
-    <Screen header={<AppBar title="SettingsCommunities" back />}>
-      <T>SettingsCommunities</T>
-    </Screen>
-  );
-}
+export default CommunitiesSettings;

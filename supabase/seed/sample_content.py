@@ -13,7 +13,7 @@ informative = facts, light = friendly with a smile (never for sad news).
 # ---------------------------------------------------------------------------
 FULL_NEWS = [
     dict(
-        key='heat', topic='weather', level='important', youth=True,
+        key='heat', topic='weather', level='important',
         params=[
             dict(day=('היום', 'today', 'aujourd’hui'), max='34',
                  region=('בשפלה ובעמקים', 'in the lowlands and valleys', 'dans la plaine et les vallées')),
@@ -52,7 +52,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='first_rain', topic='weather', level='general', youth=True,
+        key='first_rain', topic='weather', level='general',
         params=[
             dict(region=('בגליל ובגולן', 'in the Galilee and the Golan Heights', 'en Galilée et sur le Golan'),
                  when=('בסוף השבוע', 'this weekend', 'ce week-end')),
@@ -89,7 +89,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='water_outage', topic='consumer', level='critical', youth=False,
+        key='water_outage', topic='consumer', level='critical',
         params=[
             dict(city=('ירושלים', 'Jerusalem', 'Jérusalem'), area=('בדרום העיר', 'in the south of the city', 'dans le sud de la ville'), until='18:00'),
             dict(city=('חיפה', 'Haifa', 'Haïfa'), area=('בשכונות הכרמל', 'in the Carmel neighbourhoods', 'dans les quartiers du Carmel'), until='16:00'),
@@ -119,7 +119,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='rail_works', topic='transport', level='important', youth=True,
+        key='rail_works', topic='transport', level='important',
         params=[
             dict(route=('בין תל אביב לחיפה', 'between Tel Aviv and Haifa', 'entre Tel-Aviv et Haïfa'),
                  when=('בשלושת הלילות הקרובים', 'over the next three nights', 'les trois prochaines nuits')),
@@ -156,7 +156,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='bus_disruption', topic='transport', level='critical', youth=False,
+        key='bus_disruption', topic='transport', level='critical',
         params=[
             dict(city=('תל אביב־יפו', 'Tel Aviv-Yafo', 'Tel-Aviv-Jaffa'), until='12:00'),
             dict(city=('ירושלים', 'Jerusalem', 'Jérusalem'), until='10:00'),
@@ -185,7 +185,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='road_closure', topic='transport', level='important', youth=False,
+        key='road_closure', topic='transport', level='important',
         params=[
             dict(road=('כביש 1', 'Route 1', 'la route 1'),
                  section=('בין שער הגיא למחלף הראל', 'between Sha’ar HaGai and the Harel interchange', 'entre Shaar HaGaï et l’échangeur Harel'),
@@ -218,7 +218,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='flu_vaccine', topic='health', level='important', youth=False,
+        key='flu_vaccine', topic='health', level='important',
         params=[dict()],
         he=dict(
             calm=('מבצע החיסונים לשפעת נפתח בקופות החולים',
@@ -244,7 +244,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='walking_study', topic='science', level='general', youth=True,
+        key='walking_study', topic='science', level='general',
         params=[dict(minutes='20'), dict(minutes='15')],
         he=dict(
             calm=('מחקר: {minutes} דקות הליכה ביום עושות הבדל',
@@ -276,7 +276,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='school_registration', topic='education', level='important', youth=False,
+        key='school_registration', topic='education', level='important',
         params=[
             dict(what=('לגני הילדים', 'for municipal kindergartens', 'pour les jardins d’enfants municipaux')),
             dict(what=('לכיתות א׳', 'for first grade', 'pour l’entrée en primaire')),
@@ -305,7 +305,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='sukkot_vacation', topic='education', level='general', youth=True,
+        key='sukkot_vacation', topic='education', level='general',
         params=[dict()],
         he=dict(
             calm=('חופשת סוכות: הלימודים יתחדשו אחרי שמחת תורה',
@@ -337,7 +337,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='sms_scam', topic='consumer', level='important', youth=True,
+        key='sms_scam', topic='consumer', level='important',
         params=[dict(topic=('משלוח חבילה', 'a parcel delivery', 'la livraison d’un colis')),
                 dict(topic=('חוב בחשבון החשמל', 'an unpaid electricity bill', 'une facture d’électricité impayée'))],
         he=dict(
@@ -370,7 +370,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='fuel_price', topic='economy', level='general', youth=False,
+        key='fuel_price', topic='economy', level='general',
         params=[dict(dir=('יירד', 'will fall', 'baissera')), dict(dir=('יעלה', 'will rise', 'augmentera'))],
         he=dict(
             calm=('מחיר הדלק {dir} מעט בתחילת החודש',
@@ -396,7 +396,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='home_front_drill', topic='security', level='important', youth=False,
+        key='home_front_drill', topic='security', level='important',
         params=[
             dict(region=('במחוז הצפון', 'in the northern district', 'dans le district Nord'), time='11:00'),
             dict(region=('באזור השפלה', 'in the Shfela region', 'dans la région de la Shfela'), time='10:30'),
@@ -425,7 +425,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='world_plastic', topic='world', level='general', youth=True,
+        key='world_plastic', topic='world', level='general',
         params=[dict()],
         he=dict(
             calm=('מדינות אירופה מתאמות כללים חדשים לאריזות',
@@ -457,7 +457,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='world_heatwave', topic='world', level='general', youth=False,
+        key='world_heatwave', topic='world', level='general',
         params=[dict()],
         he=dict(
             calm=('גל חום בדרום אירופה; הטיסות פועלות כסדרן',
@@ -483,7 +483,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='space_image', topic='science', level='general', youth=True,
+        key='space_image', topic='science', level='general',
         params=[dict(shape=('פרפר', 'a butterfly', 'un papillon')), dict(shape=('ורד', 'a rose', 'une rose'))],
         he=dict(
             calm=('טלסקופ חלל צילם ענן גז בצורת {shape}',
@@ -515,7 +515,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='leak_sensor', topic='science', level='general', youth=True,
+        key='leak_sensor', topic='science', level='general',
         params=[dict()],
         he=dict(
             calm=('חוקרים בישראל פיתחו חיישן זול לאיתור דליפות מים',
@@ -547,7 +547,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='sukkot_festival', topic='culture', level='general', youth=True,
+        key='sukkot_festival', topic='culture', level='general',
         params=[
             dict(city=('ירושלים', 'Jerusalem', 'Jérusalem')),
             dict(city=('חיפה', 'Haifa', 'Haïfa')),
@@ -583,7 +583,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='library_hours', topic='culture', level='general', youth=True,
+        key='library_hours', topic='culture', level='general',
         params=[dict()],
         he=dict(
             calm=('ספריות עירוניות מאריכות שעות פתיחה בחופשה',
@@ -615,7 +615,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='youth_team', topic='sports', level='general', youth=True,
+        key='youth_team', topic='sports', level='general',
         params=[
             dict(sport=('בכדורעף', 'volleyball', 'de volley-ball'), stage=('לחצי הגמר', 'the semi-finals', 'les demi-finales')),
             dict(sport=('בכדוריד', 'handball', 'de handball'), stage=('לרבע הגמר', 'the quarter-finals', 'les quarts de finale')),
@@ -651,7 +651,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='night_run', topic='sports', level='general', youth=False,
+        key='night_run', topic='sports', level='general',
         params=[
             dict(city=('תל אביב־יפו', 'Tel Aviv-Yafo', 'Tel-Aviv-Jaffa'), hours='19:00–23:30'),
             dict(city=('מודיעין', 'Modiin', 'Modiin'), hours='18:30–22:30'),
@@ -680,7 +680,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='four_species', topic='judaism', level='general', youth=True,
+        key='four_species', topic='judaism', level='general',
         params=[
             dict(city=('ירושלים', 'Jerusalem', 'Jérusalem')),
             dict(city=('בני ברק', 'Bnei Brak', 'Bné Brak')),
@@ -715,7 +715,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='refund_ruling', topic='law', level='general', youth=False,
+        key='refund_ruling', topic='law', level='general',
         params=[dict(company=('חברת תקשורת', 'a telecom company', 'un opérateur télécom')),
                 dict(company=('רשת חדרי כושר', 'a gym chain', 'une chaîne de salles de sport'))],
         he=dict(
@@ -742,7 +742,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='knesset_session', topic='politics', level='important', youth=False,
+        key='knesset_session', topic='politics', level='important',
         params=[dict()],
         he=dict(
             calm=('הכנסת תחזור מהפגרה אחרי החגים',
@@ -768,7 +768,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='rent_prices', topic='economy', level='important', youth=False,
+        key='rent_prices', topic='economy', level='important',
         params=[dict()],
         he=dict(
             calm=('מחירי השכירות עלו בשנה האחרונה, בקצב מתון יותר',
@@ -794,7 +794,7 @@ FULL_NEWS = [
         ),
     ),
     dict(
-        key='sukkah_safety', topic='health', level='general', youth=True,
+        key='sukkah_safety', topic='health', level='general',
         params=[dict()],
         he=dict(
             calm=('לקראת החג: כמה כללי בטיחות פשוטים בבניית הסוכה',
@@ -829,7 +829,7 @@ FULL_NEWS = [
 
 # The special update (critical, published a few hours before the seed time)
 SPECIAL = dict(
-    key='special_heat', topic='weather', level='critical', youth=False,
+    key='special_heat', topic='weather', level='critical',
     params=[dict()],
     he=dict(
         calm=('עומס חום כבד היום: להישאר בצל בשעות הצהריים',
@@ -1235,7 +1235,7 @@ HE_NEWS = [
 # ---------------------------------------------------------------------------
 GOOD_NEWS = [
     dict(
-        key='gn_sukkah_volunteers', topic='judaism', level='general', youth=True,
+        key='gn_sukkah_volunteers', topic='judaism', level='general',
         params=[dict(city=('ירושלים', 'Jerusalem', 'Jérusalem'), n='40'),
                 dict(city=('אשדוד', 'Ashdod', 'Ashdod'), n='25')],
         he=dict(
@@ -1268,7 +1268,7 @@ GOOD_NEWS = [
         ),
     ),
     dict(
-        key='gn_cranes', topic='science', level='general', youth=True,
+        key='gn_cranes', topic='science', level='general',
         params=[dict()],
         he=dict(
             calm=('העגורים הראשונים הגיעו לעמק החולה',
@@ -1300,7 +1300,7 @@ GOOD_NEWS = [
         ),
     ),
     dict(
-        key='gn_wallet', topic='education', level='general', youth=True,
+        key='gn_wallet', topic='education', level='general',
         params=[dict(city=('חולון', 'Holon', 'Holon')), dict(city=('עפולה', 'Afula', 'Afoula'))],
         he=dict(
             calm=('תלמידים מצאו ארנק עם כסף והחזירו אותו',
@@ -1332,7 +1332,7 @@ GOOD_NEWS = [
         ),
     ),
     dict(
-        key='gn_street_library', topic='culture', level='general', youth=True,
+        key='gn_street_library', topic='culture', level='general',
         params=[dict(city=('באר שבע', 'Beersheba', 'Beer-Sheva')), dict(city=('כרמיאל', 'Karmiel', 'Karmiel'))],
         he=dict(
             calm=('ספרייה ברחוב: כל אחד לוקח ומחזיר',
@@ -1364,7 +1364,7 @@ GOOD_NEWS = [
         ),
     ),
     dict(
-        key='gn_sea_turtle', topic='science', level='general', youth=True,
+        key='gn_sea_turtle', topic='science', level='general',
         params=[dict()],
         he=dict(
             calm=('צבת ים חזרה לים אחרי טיפול',
@@ -1396,7 +1396,7 @@ GOOD_NEWS = [
         ),
     ),
     dict(
-        key='gn_beach_cleanup', topic='culture', level='general', youth=True,
+        key='gn_beach_cleanup', topic='culture', level='general',
         params=[dict(region=('בחופי הצפון', 'on the northern beaches', 'sur les plages du Nord')),
                 dict(region=('בחופי אשקלון ואשדוד', 'on the beaches of Ashkelon and Ashdod', 'sur les plages d’Ashkelon et d’Ashdod'))],
         he=dict(
@@ -1429,7 +1429,7 @@ GOOD_NEWS = [
         ),
     ),
     dict(
-        key='gn_graduate', topic='education', level='general', youth=False,
+        key='gn_graduate', topic='education', level='general',
         params=[dict(age='84')],
         he=dict(
             calm=('בגיל {age} סיים תואר ראשון בהיסטוריה',
@@ -1443,7 +1443,7 @@ GOOD_NEWS = [
         ),
     ),
     dict(
-        key='gn_meal_train', topic='culture', level='general', youth=False,
+        key='gn_meal_train', topic='culture', level='general',
         params=[dict()],
         he=dict(
             calm=('שכנים ארגנו ארוחות למשפחה אחרי לידה',
@@ -1457,7 +1457,7 @@ GOOD_NEWS = [
         ),
     ),
     dict(
-        key='gn_kidney', topic='health', level='general', youth=False,
+        key='gn_kidney', topic='health', level='general',
         params=[dict()],
         he=dict(
             calm=('תרומת כליה חיברה בין שתי משפחות',
@@ -1471,7 +1471,7 @@ GOOD_NEWS = [
         ),
     ),
     dict(
-        key='gn_kinder_garden', topic='education', level='general', youth=False,
+        key='gn_kinder_garden', topic='education', level='general',
         params=[dict()],
         he=dict(
             calm=('ילדי גן שתלו גינת ירק והזמינו את השכונה',
@@ -1560,3 +1560,43 @@ ADS = [
          body='Des légumes frais de la vallée, livrés chaque semaine. 10 % de remise sur le premier panier.',
          link_url='https://example.com/sample-farm-box'),
 ]
+
+# ---------------------------------------------------------------------------
+# Extra Hebrew-only parameter sets (older editions only; never rendered in en/fr)
+# ---------------------------------------------------------------------------
+HE_ONLY_PARAMS = {
+    'heat': [dict(day='היום', max='35', region='בעמקים ובגליל התחתון'),
+             dict(day='מחר', max='32', region='באזור ההר'),
+             dict(day='היום', max='37', region='בבקעת הירדן')],
+    'water_outage': [dict(city='פתח תקווה', area='במרכז העיר', until='15:00'),
+                     dict(city='אשקלון', area='בשכונות הדרומיות', until='17:00'),
+                     dict(city='רחובות', area='בשכונות המערביות', until='19:00')],
+    'bus_disruption': [dict(city='חיפה', until='11:00'), dict(city='באר שבע', until='09:30')],
+    'road_closure': [dict(road='כביש 6', section='בין מחלף עירון למחלף עין תות', hours='23:00–05:00'),
+                     dict(road='כביש 4', section='בין אשדוד לגן יבנה', hours='22:30–05:00')],
+    'rail_works': [dict(route='בין באר שבע לתל אביב', when='בלילה שבין שני לשלישי'),
+                   dict(route='בין נהריה לעכו', when='בשני הלילות הקרובים')],
+    'sms_scam': [dict(topic='החזר מס'), dict(topic='קנס חניה')],
+    'home_front_drill': [dict(region='באזור ירושלים', time='10:00')],
+    'space_image': [dict(shape='עין')],
+    'youth_team': [dict(sport='בשחייה', stage='לגמר'), dict(sport='בכדורגל', stage='לשלב הבא')],
+    'night_run': [dict(city='חיפה', hours='19:30–23:00'), dict(city='ירושלים', hours='19:00–23:00')],
+    'refund_ruling': [dict(company='חברת ביטוח'), dict(company='ספקית אינטרנט')],
+    'first_rain': [dict(region='בחרמון ובגולן', when='בשבוע הבא')],
+    'planned_water': [dict(city='אשדוד', night='הלילה', hours='23:30–05:00'),
+                      dict(city='הרצליה', night='בלילה שבין ראשון לשני', hours='22:00–04:30'),
+                      dict(city='עפולה', night='הלילה', hours='00:00–05:00'),
+                      dict(city='בית שמש', night='הלילה', hours='23:00–04:00')],
+    'power_maintenance': [dict(city='רעננה', day='ביום רביעי', hours='08:30–12:30'),
+                          dict(city='טבריה', day='מחר', hours='07:30–11:30'),
+                          dict(city='כרמיאל', day='ביום חמישי', hours='09:00–12:00')],
+    'light_rail': [dict(city='ירושלים', street='רחוב הרצל', weeks='שבועיים')],
+    'autumn': [dict(day='בשבוע הבא')],
+    'dust': [dict(day='בשעות אחר הצהריים')],
+    'sea_warning': [dict(day='בסוף השבוע')],
+    'football_round': [dict(n='החמישי'), dict(n='הרביעי')],
+    'para_medal': [dict(sport='בטניס שולחן'), dict(sport='בחתירה')],
+    'gn_wallet': [dict(city='רמת גן')],
+    'gn_street_library': [dict(city='נתניה')],
+    'gn_beach_cleanup': [dict(region='בחופי חיפה')],
+}

@@ -1,10 +1,3 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { LanguageSettings } from '@/features/settings/PrefScreens';
 
-// PLACEHOLDER — replaced by the owning agent.
-export default function SettingsLanguage() {
-  return (
-    <Screen header={<AppBar title="SettingsLanguage" back />}>
-      <T>SettingsLanguage</T>
-    </Screen>
-  );
-}
+export default LanguageSettings;

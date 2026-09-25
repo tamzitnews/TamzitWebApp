@@ -1,10 +1,3 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { StyleSettings } from '@/features/settings/PrefScreens';
 
-// PLACEHOLDER — replaced by the owning agent.
-export default function SettingsStyle() {
-  return (
-    <Screen header={<AppBar title="SettingsStyle" back />}>
-      <T>SettingsStyle</T>
-    </Screen>
-  );
-}
+export default StyleSettings;

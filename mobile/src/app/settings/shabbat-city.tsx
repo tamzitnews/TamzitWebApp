@@ -1,10 +1,3 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { ShabbatCitySettings } from '@/features/settings/ShabbatCitySettings';
 
-// PLACEHOLDER — replaced by the owning agent.
-export default function SettingsShabbatCity() {
-  return (
-    <Screen header={<AppBar title="SettingsShabbatCity" back />}>
-      <T>SettingsShabbatCity</T>
-    </Screen>
-  );
-}
+export default ShabbatCitySettings;

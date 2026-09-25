@@ -4,7 +4,7 @@ export const SearchStrings = defineStrings({
   he: {
     title: 'חיפוש בארכיון',
     label: 'חיפוש בכל הידיעות',
-    placeholder: 'מה לחפש?',
+    placeholder: 'חיפוש בכל הידיעות',
     clear: 'ניקוי החיפוש',
     searching: 'מחפשים',
     recent: 'חיפושים אחרונים',
@@ -26,7 +26,7 @@ export const SearchStrings = defineStrings({
   en: {
     title: 'Search the archive',
     label: 'Search all news items',
-    placeholder: 'What are you looking for?',
+    placeholder: 'Search all news items',
     clear: 'Clear search',
     searching: 'Searching',
     recent: 'Recent searches',
@@ -48,7 +48,7 @@ export const SearchStrings = defineStrings({
   fr: {
     title: 'Rechercher dans les archives',
     label: 'Rechercher dans tous les articles',
-    placeholder: 'Que cherchez-vous ?',
+    placeholder: 'Rechercher dans tous les articles',
     clear: 'Effacer la recherche',
     searching: 'Recherche en cours',
     recent: 'Recherches récentes',

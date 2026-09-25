@@ -120,6 +120,8 @@ export function EditionFeed({
   const onListen = useMemo(() => (track ? () => void play(track).catch(() => {}) : undefined), [track, play]);
 
   const rows = useMemo(() => buildRows(feed), [feed]);
+  // The motzash edition sums up a whole Shabbat: item times would only add noise.
+  const showTime = type !== 'motzash';
   const date = editionDate(feed.window.to, lang);
   const count = itemCount(feed);
 
@@ -149,7 +151,16 @@ export function EditionFeed({
         case 'special':
           return <SpecialCard item={row.item} onToggleSave={onToggleSave} onShare={onShare} onFeedback={onFeedback} />;
         case 'item':
-          return <NewsItem item={row.item} last={row.last} onToggleSave={onToggleSave} onShare={onShare} onFeedback={onFeedback} />;
+          return (
+            <NewsItem
+              item={row.item}
+              last={row.last}
+              showTime={showTime}
+              onToggleSave={onToggleSave}
+              onShare={onShare}
+              onFeedback={onFeedback}
+            />
+          );
         case 'empty':
           return <EmptyLevel criticalOnly={levelFilter === 'critical'} />;
         case 'ad':
@@ -162,7 +173,7 @@ export function EditionFeed({
           return <EndOfEdition next={next} />;
       }
     },
-    [type, name, date, count, feed.minutes, onListen, onToggleSave, onShare, onFeedback, levelFilter, next],
+    [type, name, date, count, feed.minutes, onListen, onToggleSave, onShare, onFeedback, levelFilter, next, showTime],
   );
 
   return (

@@ -1,10 +1,3 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { FamilyScreen } from '@/features/premium/FamilyScreen';
 
-// PLACEHOLDER — replaced by the owning agent.
-export default function Family() {
-  return (
-    <Screen header={<AppBar title="Family" back />}>
-      <T>Family</T>
-    </Screen>
-  );
-}
+export default FamilyScreen;

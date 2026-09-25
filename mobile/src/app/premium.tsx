@@ -1,10 +1,3 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { PremiumScreen } from '@/features/premium/PremiumScreen';
 
-// PLACEHOLDER — replaced by the owning agent.
-export default function Premium() {
-  return (
-    <Screen header={<AppBar title="Premium" back />}>
-      <T>Premium</T>
-    </Screen>
-  );
-}
+export default PremiumScreen;

@@ -1,10 +1,3 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { AboutScreen } from '@/features/settings/AboutScreens';
 
-// PLACEHOLDER — replaced by the owning agent.
-export default function About() {
-  return (
-    <Screen header={<AppBar title="About" back />}>
-      <T>About</T>
-    </Screen>
-  );
-}
+export default AboutScreen;

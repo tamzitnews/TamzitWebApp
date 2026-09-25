@@ -1,10 +1,3 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { NotificationsSettings } from '@/features/settings/NotificationsSettings';
 
-// PLACEHOLDER — replaced by the owning agent.
-export default function SettingsNotifications() {
-  return (
-    <Screen header={<AppBar title="SettingsNotifications" back />}>
-      <T>SettingsNotifications</T>
-    </Screen>
-  );
-}
+export default NotificationsSettings;

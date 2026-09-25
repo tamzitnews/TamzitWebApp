@@ -177,8 +177,10 @@ export function SearchScreen() {
           label={s.label}
           placeholder={s.placeholder}
           clearLabel={s.clear}
+          busyLabel={s.searching}
           busy={!locked && search.isFetching && typed.length >= MIN_CHARS}
           autoFocus={!notPremium}
+          editable={!notPremium}
         />
       </View>
       {body}

@@ -1,10 +1,3 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { LevelSettings } from '@/features/settings/PrefScreens';
 
-// PLACEHOLDER — replaced by the owning agent.
-export default function SettingsLevel() {
-  return (
-    <Screen header={<AppBar title="SettingsLevel" back />}>
-      <T>SettingsLevel</T>
-    </Screen>
-  );
-}
+export default LevelSettings;

@@ -1,10 +1,3 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { TopicsSettings } from '@/features/settings/PrefScreens';
 
-// PLACEHOLDER — replaced by the owning agent.
-export default function SettingsTopics() {
-  return (
-    <Screen header={<AppBar title="SettingsTopics" back />}>
-      <T>SettingsTopics</T>
-    </Screen>
-  );
-}
+export default TopicsSettings;
