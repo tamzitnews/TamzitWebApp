@@ -1,10 +1,14 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { Stack, useLocalSearchParams } from 'expo-router';
 
-// PLACEHOLDER — replaced by the owning agent.
+import { FeedbackSheet } from '@/features/feedback/FeedbackSheet';
+
 export default function Feedback() {
+  const { itemId } = useLocalSearchParams<{ itemId: string }>();
   return (
-    <Screen header={<AppBar title="Feedback" back />}>
-      <T>Feedback</T>
-    </Screen>
+    <>
+      {/* The sheet sits over the previous screen: no opaque screen background under the scrim. */}
+      <Stack.Screen options={{ contentStyle: { backgroundColor: 'transparent' } }} />
+      <FeedbackSheet itemId={String(itemId ?? '')} />
+    </>
   );
 }

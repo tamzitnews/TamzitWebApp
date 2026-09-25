@@ -1,10 +1,8 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { useLocalSearchParams } from 'expo-router';
 
-// PLACEHOLDER — replaced by the owning agent.
+import { ShareScreen } from '@/features/share/ShareScreen';
+
 export default function Share() {
-  return (
-    <Screen header={<AppBar title="Share" back />}>
-      <T>Share</T>
-    </Screen>
-  );
+  const { itemId } = useLocalSearchParams<{ itemId: string }>();
+  return <ShareScreen itemId={String(itemId ?? '')} />;
 }

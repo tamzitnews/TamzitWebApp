@@ -1,10 +1,5 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { SavedScreen } from '@/features/saved/SavedScreen';
 
-// PLACEHOLDER — replaced by the owning agent.
 export default function SavedTab() {
-  return (
-    <Screen header={<AppBar title="SavedTab" back />}>
-      <T>SavedTab</T>
-    </Screen>
-  );
+  return <SavedScreen />;
 }

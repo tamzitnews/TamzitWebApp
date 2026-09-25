@@ -1,10 +1,3 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { WelcomeScreen } from '@/features/onboarding/WelcomeScreen';
 
-// PLACEHOLDER — replaced by the owning agent.
-export default function Welcome() {
-  return (
-    <Screen header={<AppBar title="Welcome" back />}>
-      <T>Welcome</T>
-    </Screen>
-  );
-}
+export default WelcomeScreen;

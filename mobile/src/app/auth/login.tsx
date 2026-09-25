@@ -1,10 +1,3 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { LoginScreen } from '@/features/auth/LoginScreen';
 
-// PLACEHOLDER — replaced by the owning agent.
-export default function Login() {
-  return (
-    <Screen header={<AppBar title="Login" back />}>
-      <T>Login</T>
-    </Screen>
-  );
-}
+export default LoginScreen;

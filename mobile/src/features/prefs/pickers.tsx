@@ -1,7 +1,7 @@
 // Shared preference pickers: used by the onboarding steps and by the settings screens.
 // Each one renders only the control (no page title, no CTA) and is fully controlled.
 import { Backpack, Check, Feather, Heart, List, MapPin, Minus, Newspaper, Plus, Smile, X } from 'lucide-react-native';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -382,6 +382,7 @@ function TimeSheet({
   const COLS = 4;
   const CELL_H = touchMin + space[2];
   const selectedRow = Math.max(0, Math.floor(choices.indexOf(value) / COLS));
+  const scroller = useRef<ScrollView>(null);
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <View style={{ flex: 1, justifyContent: 'flex-end' }}>
@@ -404,7 +405,9 @@ function TimeSheet({
             <IconButton icon={X} label={s.close} onPress={onClose} variant="tint" />
           </View>
           <ScrollView
-            contentOffset={{ x: 0, y: Math.max(0, (selectedRow - 1) * CELL_H) }}
+            ref={scroller}
+            // Open with the current time in view (one row of context above it).
+            onContentSizeChange={() => scroller.current?.scrollTo({ y: Math.max(0, (selectedRow - 1) * CELL_H), animated: false })}
             contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: space[4], paddingVertical: space[2] }}>
             {choices.map((t) => {
               const on = t === value;

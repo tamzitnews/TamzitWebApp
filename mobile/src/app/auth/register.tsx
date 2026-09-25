@@ -1,10 +1,3 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { RegisterScreen } from '@/features/auth/RegisterScreen';
 
-// PLACEHOLDER — replaced by the owning agent.
-export default function Register() {
-  return (
-    <Screen header={<AppBar title="Register" back />}>
-      <T>Register</T>
-    </Screen>
-  );
-}
+export default RegisterScreen;

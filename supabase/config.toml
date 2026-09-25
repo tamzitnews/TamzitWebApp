@@ -1,0 +1,12 @@
+# Minimal Supabase CLI config for deploying the Tamzit app edge functions.
+# Deploy: npx supabase@latest functions deploy <name> --project-ref $SUPABASE_PROJECT_REF --no-verify-jwt --use-api
+project_id = "tamzit-app"
+
+[functions.app-auth-start]
+verify_jwt = false
+
+[functions.app-auth-verify]
+verify_jwt = false
+
+[functions.app-push-special]
+verify_jwt = false

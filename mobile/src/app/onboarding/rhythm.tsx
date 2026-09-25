@@ -1,10 +1,3 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { RhythmStep } from '@/features/onboarding/steps';
 
-// PLACEHOLDER — replaced by the owning agent.
-export default function OnboardingRhythm() {
-  return (
-    <Screen header={<AppBar title="OnboardingRhythm" back />}>
-      <T>OnboardingRhythm</T>
-    </Screen>
-  );
-}
+export default RhythmStep;

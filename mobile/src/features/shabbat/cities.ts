@@ -1,0 +1,35 @@
+// Built-in copy of the app_cities reference rows (supabase/seed/001_reference.sql), used for Shabbat
+// times when the cities list has not loaded yet (first launch offline). The server list wins when present.
+import type { City } from '@/lib/types';
+
+export const BUILTIN_CITIES: City[] = [
+  { id: 'jerusalem', name_he: 'ירושלים', name_en: 'Jerusalem', name_fr: 'Jérusalem', lat: 31.7683, lon: 35.2137, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 40, sort: 10 },
+  { id: 'tel-aviv', name_he: 'תל אביב־יפו', name_en: 'Tel Aviv-Yafo', name_fr: 'Tel Aviv-Jaffa', lat: 32.0853, lon: 34.7818, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 20 },
+  { id: 'haifa', name_he: 'חיפה', name_en: 'Haifa', name_fr: 'Haïfa', lat: 32.7940, lon: 34.9896, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 30, sort: 30 },
+  { id: 'beer-sheva', name_he: 'באר שבע', name_en: 'Beersheba', name_fr: 'Beer-Sheva', lat: 31.2518, lon: 34.7913, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 40 },
+  { id: 'modiin', name_he: 'מודיעין', name_en: 'Modiin', name_fr: 'Modiin', lat: 31.8980, lon: 35.0104, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 50 },
+  { id: 'rishon-lezion', name_he: 'ראשון לציון', name_en: 'Rishon LeZion', name_fr: 'Rishon LeZion', lat: 31.9730, lon: 34.7925, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 60 },
+  { id: 'petah-tikva', name_he: 'פתח תקווה', name_en: 'Petah Tikva', name_fr: 'Petah Tikva', lat: 32.0840, lon: 34.8878, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 70 },
+  { id: 'ashdod', name_he: 'אשדוד', name_en: 'Ashdod', name_fr: 'Ashdod', lat: 31.8014, lon: 34.6435, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 80 },
+  { id: 'netanya', name_he: 'נתניה', name_en: 'Netanya', name_fr: 'Netanya', lat: 32.3215, lon: 34.8532, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 90 },
+  { id: 'bnei-brak', name_he: 'בני ברק', name_en: 'Bnei Brak', name_fr: 'Bné Brak', lat: 32.0807, lon: 34.8338, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 100 },
+  { id: 'holon', name_he: 'חולון', name_en: 'Holon', name_fr: 'Holon', lat: 32.0158, lon: 34.7874, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 110 },
+  { id: 'ramat-gan', name_he: 'רמת גן', name_en: 'Ramat Gan', name_fr: 'Ramat Gan', lat: 32.0684, lon: 34.8248, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 120 },
+  { id: 'rehovot', name_he: 'רחובות', name_en: 'Rehovot', name_fr: 'Rehovot', lat: 31.8928, lon: 34.8113, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 130 },
+  { id: 'ashkelon', name_he: 'אשקלון', name_en: 'Ashkelon', name_fr: 'Ashkelon', lat: 31.6688, lon: 34.5743, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 140 },
+  { id: 'beit-shemesh', name_he: 'בית שמש', name_en: 'Beit Shemesh', name_fr: 'Beit Shemesh', lat: 31.7470, lon: 34.9881, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 150 },
+  { id: 'kfar-saba', name_he: 'כפר סבא', name_en: 'Kfar Saba', name_fr: 'Kfar Saba', lat: 32.1750, lon: 34.9070, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 160 },
+  { id: 'herzliya', name_he: 'הרצליה', name_en: 'Herzliya', name_fr: 'Herzliya', lat: 32.1624, lon: 34.8447, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 170 },
+  { id: 'raanana', name_he: 'רעננה', name_en: 'Ra\'anana', name_fr: 'Ra\'anana', lat: 32.1848, lon: 34.8713, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 180 },
+  { id: 'hadera', name_he: 'חדרה', name_en: 'Hadera', name_fr: 'Hadera', lat: 32.4340, lon: 34.9197, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 190 },
+  { id: 'afula', name_he: 'עפולה', name_en: 'Afula', name_fr: 'Afoula', lat: 32.6078, lon: 35.2897, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 200 },
+  { id: 'tiberias', name_he: 'טבריה', name_en: 'Tiberias', name_fr: 'Tibériade', lat: 32.7922, lon: 35.5312, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 210 },
+  { id: 'safed', name_he: 'צפת', name_en: 'Safed', name_fr: 'Safed', lat: 32.9646, lon: 35.4960, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 220 },
+  { id: 'karmiel', name_he: 'כרמיאל', name_en: 'Karmiel', name_fr: 'Karmiel', lat: 32.9190, lon: 35.2950, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 230 },
+  { id: 'eilat', name_he: 'אילת', name_en: 'Eilat', name_fr: 'Eilat', lat: 29.5577, lon: 34.9519, tzid: 'Asia/Jerusalem', in_israel: true, candle_minutes: 20, sort: 240 },
+  { id: 'paris', name_he: 'פריז', name_en: 'Paris', name_fr: 'Paris', lat: 48.8566, lon: 2.3522, tzid: 'Europe/Paris', in_israel: false, candle_minutes: 18, sort: 500 },
+  { id: 'london', name_he: 'לונדון', name_en: 'London', name_fr: 'Londres', lat: 51.5074, lon: -0.1278, tzid: 'Europe/London', in_israel: false, candle_minutes: 18, sort: 510 },
+  { id: 'new-york', name_he: 'ניו יורק', name_en: 'New York', name_fr: 'New York', lat: 40.7128, lon: -74.0060, tzid: 'America/New_York', in_israel: false, candle_minutes: 18, sort: 520 },
+  { id: 'montreal', name_he: 'מונטריאול', name_en: 'Montreal', name_fr: 'Montréal', lat: 45.5019, lon: -73.5674, tzid: 'America/Toronto', in_israel: false, candle_minutes: 18, sort: 530 },
+  { id: 'los-angeles', name_he: 'לוס אנג\'לס', name_en: 'Los Angeles', name_fr: 'Los Angeles', lat: 34.0522, lon: -118.2437, tzid: 'America/Los_Angeles', in_israel: false, candle_minutes: 18, sort: 540 },
+];

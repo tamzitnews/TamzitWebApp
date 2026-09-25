@@ -1,10 +1,3 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { PermissionsScreen } from '@/features/onboarding/PermissionsScreen';
 
-// PLACEHOLDER — replaced by the owning agent.
-export default function Permissions() {
-  return (
-    <Screen header={<AppBar title="Permissions" back />}>
-      <T>Permissions</T>
-    </Screen>
-  );
-}
+export default PermissionsScreen;

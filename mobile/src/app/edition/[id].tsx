@@ -1,10 +1,8 @@
-import { AppBar, Screen, T } from '@/components/ui';
+import { useLocalSearchParams } from 'expo-router';
 
-// PLACEHOLDER — replaced by the owning agent.
+import { EditionViewScreen } from '@/features/edition/screens';
+
 export default function EditionView() {
-  return (
-    <Screen header={<AppBar title="EditionView" back />}>
-      <T>EditionView</T>
-    </Screen>
-  );
+  const { id } = useLocalSearchParams<{ id: string }>();
+  return <EditionViewScreen id={String(id ?? '')} />;
 }
