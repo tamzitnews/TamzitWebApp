@@ -6,10 +6,10 @@ import { Linking, View } from 'react-native';
 
 import { Button, ErrorState, ListGroup, ListRow, Loading, T, TextField } from '@/components/ui';
 import { CityField, type CityValue } from '@/features/auth/CityField';
-import { auth } from '@/lib/api';
 import { defineStrings, localName, useLang, useStrings } from '@/lib/i18n';
 import { cancelEditionNotifications } from '@/lib/notifications';
 import { useAppSettings, useCities } from '@/lib/queries';
+import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/types';
 import { useTheme } from '@/theme/ThemeProvider';
 import { space } from '@/theme/tokens';
@@ -188,7 +188,8 @@ function AccountForm({ profile }: { profile: Profile }) {
   const signOut = async () => {
     setSigningOut(true);
     await cancelEditionNotifications().catch(() => {});
-    await auth.signOut().catch(() => {});
+    // Only this device: the reader stays signed in on their other devices.
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
     qc.clear();
     setConfirm(null);
     router.replace('/');
