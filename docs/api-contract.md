@@ -93,6 +93,7 @@ type Feed = {
 - `app_family_invite(p_phone text, p_name text) → jsonb`, `app_family_remove(p_phone text) → void` — family owners only.
 - `app_register_device(p_token text, p_platform text) → void`.
 - `app_record_donation(p_amount numeric, p_frequency text) → uuid`.
+- Engine only (service role, not callable by the app): `app_engine_upsert_edition(p_edition jsonb) → uuid` — upserts an edition with its items and versions in one transaction; see [`engine-integration.md`](engine-integration.md).
 
 ## Edge functions (Supabase Functions, `verify_jwt = false`)
 
