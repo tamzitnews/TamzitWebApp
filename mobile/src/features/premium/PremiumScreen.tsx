@@ -16,6 +16,8 @@ import { PlanCard } from './PlanCard';
 import { SupporterBadge } from './SupporterBadge';
 import { PREMIUM_S } from './strings';
 
+const MOTIF = 88;
+
 /** Store billing is not wired yet: explains that subscriptions open soon. */
 function ComingSoonSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const s = useStrings(PREMIUM_S);
@@ -83,11 +85,16 @@ export function PremiumScreen() {
             paddingBottom: space[8] + space[4],
             overflow: 'hidden',
           }}>
-          <SquaresMotif size={88} style={{ position: 'absolute', top: 0, end: 0 }} />
+          <SquaresMotif size={MOTIF} style={{ position: 'absolute', top: 0, end: 0 }} />
           <View style={{ marginStart: -10, alignSelf: 'flex-start' }}>
             <IconButton icon={X} label={s.close} variant="hero" onPress={close} />
           </View>
-          <T variant="display" color="onHero" accessibilityRole="header" style={{ fontSize: 26, lineHeight: 32, marginTop: space[3], marginBottom: space[2] }}>
+          {/* The title starts below the squares motif (88px at the top corner), never behind it. */}
+          <T
+            variant="display"
+            color="onHero"
+            accessibilityRole="header"
+            style={{ fontSize: 26, lineHeight: 32, marginTop: Math.max(space[3], MOTIF + 4 - (insets.top + space[3] + 44)), marginBottom: space[2] }}>
             {s.title}
           </T>
           <T variant="body" color="onHeroMuted" style={{ fontSize: 16, lineHeight: 24, maxWidth: 290 }}>
