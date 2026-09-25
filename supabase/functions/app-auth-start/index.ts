@@ -46,8 +46,8 @@ Deno.serve(async (req) => {
     const attemptId = await recordAttempt(db, phone, 'start', false);
 
     const { data: profile, error: profileError } = await db
-      .from('app_profiles')
-      .select('id,email')
+      .from('user_preferences')
+      .select('user_id,email')
       .eq('phone', phone)
       .maybeSingle();
     if (profileError) throw profileError;
@@ -61,8 +61,8 @@ Deno.serve(async (req) => {
       if (!isEmail(email)) return json({ error: 'invalid_email' }, 400);
 
       const { data: sameEmail, error: emailError } = await db
-        .from('app_profiles')
-        .select('id')
+        .from('user_preferences')
+        .select('user_id')
         .eq('email', email)
         .limit(1);
       if (emailError) throw emailError;
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
       });
       if (pendError) throw pendError;
     } else {
-      if (!profile) return json({ error: 'not_registered' }, 404);
+      if (!profile || !profile.email) return json({ error: 'not_registered' }, 404);
       email = String(profile.email).toLowerCase();
     }
 

@@ -8,8 +8,7 @@ do $$
 declare t text;
 begin
   foreach t in array array[
-    'app_topics', 'app_cities', 'app_communities', 'app_items', 'app_item_versions', 'app_editions',
-    'app_edition_items', 'app_audio', 'app_ads', 'app_settings', 'app_profiles', 'app_subscriptions',
+    'app_topics', 'app_cities', 'app_communities', 'app_settings', 'app_subscriptions',
     'app_family_members', 'app_saved_items', 'app_reads', 'app_feedback', 'app_messages', 'app_devices',
     'app_donations', 'app_pending_registrations', 'app_login_attempts', 'app_login_codes'
   ] loop
@@ -22,22 +21,18 @@ end $$;
 -- ---------------------------------------------------------------------------
 
 -- No client access at all: content is served by security-definer RPCs only.
-revoke all on public.app_items, public.app_item_versions, public.app_edition_items, public.app_ads,
-  public.app_subscriptions, public.app_pending_registrations, public.app_login_attempts, public.app_login_codes
+revoke all on public.app_subscriptions, public.app_pending_registrations, public.app_login_attempts, public.app_login_codes
   from anon, authenticated;
 revoke all on sequence public.app_login_attempts_id_seq from anon, authenticated;
 
 -- Reference data: read only. Topics, cities, communities and the public settings are readable
 -- before registration (anon key, onboarding); editions and audio need a signed-in user.
-revoke all on public.app_topics, public.app_cities, public.app_communities, public.app_editions,
-  public.app_audio, public.app_settings from anon, authenticated;
+revoke all on public.app_topics, public.app_cities, public.app_communities, public.app_settings from anon, authenticated;
 grant select on public.app_topics, public.app_cities, public.app_communities, public.app_settings to anon, authenticated;
-grant select on public.app_editions, public.app_audio to authenticated;
 
 -- User tables: authenticated only, limited verbs.
-revoke all on public.app_profiles, public.app_family_members, public.app_saved_items, public.app_reads,
+revoke all on public.app_family_members, public.app_saved_items, public.app_reads,
   public.app_feedback, public.app_messages, public.app_devices, public.app_donations from anon, authenticated;
-grant select, update on public.app_profiles to authenticated;
 grant select, insert, update, delete on public.app_family_members to authenticated;
 grant select, insert, delete on public.app_saved_items to authenticated;
 grant select, insert, update, delete on public.app_reads to authenticated;
@@ -61,34 +56,14 @@ create policy app_cities_read on public.app_cities for select to anon, authentic
 drop policy if exists app_communities_read on public.app_communities;
 create policy app_communities_read on public.app_communities for select to anon, authenticated using (active);
 
-drop policy if exists app_editions_read on public.app_editions;
-create policy app_editions_read on public.app_editions for select to authenticated
-  using (status = 'published' and published_at <= now());
-
-drop policy if exists app_audio_read on public.app_audio;
-create policy app_audio_read on public.app_audio for select to authenticated
-  using (status = 'published' and published_at <= now());
-
 drop policy if exists app_settings_read on public.app_settings;
 create policy app_settings_read on public.app_settings for select to anon, authenticated
   using (key in ('free_archive_days', 'max_items', 'donation_url', 'support_email'));
 
--- Profiles: own row, select + update. Inserts are done by app-auth-verify (service role).
-drop policy if exists app_profiles_select_own on public.app_profiles;
-create policy app_profiles_select_own on public.app_profiles for select to authenticated
-  using (id = (select auth.uid()));
-drop policy if exists app_profiles_update_own on public.app_profiles;
-create policy app_profiles_update_own on public.app_profiles for update to authenticated
-  using (id = (select auth.uid())) with check (id = (select auth.uid()));
-
--- Family: the owner manages own rows; a member can see the rows that name their phone.
+-- Family: the owner manages own rows (the member policy app_family_member_read is in 0008).
 drop policy if exists app_family_owner_all on public.app_family_members;
 create policy app_family_owner_all on public.app_family_members for all to authenticated
   using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
-drop policy if exists app_family_member_read on public.app_family_members;
-create policy app_family_member_read on public.app_family_members for select to authenticated
-  using (member_phone = (select p.phone from public.app_profiles p where p.id = (select auth.uid())));
-
 -- Own-row tables
 drop policy if exists app_saved_own on public.app_saved_items;
 create policy app_saved_own on public.app_saved_items for all to authenticated
@@ -123,43 +98,12 @@ drop policy if exists app_donations_insert_own on public.app_donations;
 create policy app_donations_insert_own on public.app_donations for insert to authenticated
   with check (profile_id = (select auth.uid()) and status = 'initiated');
 
--- app_items, app_item_versions, app_edition_items, app_ads, app_subscriptions, app_pending_registrations,
+-- app_subscriptions, app_pending_registrations,
 -- app_login_attempts, app_login_codes: RLS on and no policies = no client rows.
 
 -- ---------------------------------------------------------------------------
 -- Protective triggers
 -- ---------------------------------------------------------------------------
-
--- Clients cannot change id / phone / email / created_at of a profile.
--- Requests carrying a JWT that is not the service role are "clients"; direct database sessions
--- (migrations, the engine over SQL) and the service role are trusted.
-create or replace function public.app_profiles_guard()
-returns trigger
-language plpgsql
-set search_path = public
-as $$
-declare
-  v_role text := coalesce(
-    nullif(current_setting('request.jwt.claim.role', true), ''),
-    (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role')
-  );
-begin
-  if v_role is not null and v_role <> 'service_role' then
-    if new.id is distinct from old.id
-       or new.phone is distinct from old.phone
-       or new.email is distinct from old.email
-       or new.created_at is distinct from old.created_at then
-      raise exception using errcode = 'P0001', message = 'immutable_field',
-        detail = 'id, phone, email and created_at cannot be changed by the app';
-    end if;
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists app_profiles_guard on public.app_profiles;
-create trigger app_profiles_guard before update on public.app_profiles
-  for each row execute function public.app_profiles_guard();
 
 -- A family has at most 4 active (invited or joined) members besides the owner.
 create or replace function public.app_family_limit()
@@ -183,6 +127,5 @@ create trigger app_family_limit before insert or update on public.app_family_mem
   for each row execute function public.app_family_limit();
 
 -- Trigger functions are not callable as RPCs by clients.
-revoke execute on function public.app_profiles_guard() from public, anon, authenticated;
 revoke execute on function public.app_family_limit() from public, anon, authenticated;
 revoke execute on function public.app_touch_updated_at() from public, anon, authenticated;

@@ -1,17 +1,14 @@
 # חיבור המנוע לאפליקציה
 
-המסמך מסביר איך מערכת ההפקה (המנוע) כותבת תוכן לאפליקציה: ידיעות, גרסאות, מהדורות, אודיו, פרסומות ועדכונים מיוחדים. החוזה המלא של הטבלאות והפונקציות נמצא ב־[`api-contract.md`](api-contract.md).
+המסמך מסביר איך מערכת ההפקה (המנוע) של תמצית החדשות מזינה את האפליקציה בפרויקט **tamzitnews_v1**. האפליקציה קוראת את **הטבלאות הקיימות של המנוע**, `tamzit_editions`, `tamzit_edition_elements` ו־`processed_stories`, ושומרת את פרופילי הקוראים בטבלה הקיימת `user_preferences`. אין טבלאות תוכן כפולות של האפליקציה. החוזה המלא נמצא ב־[`api-contract.md`](api-contract.md).
 
 ## עקרונות
 
-- **הכתיבה נעשית עם מפתח ה־service role בלבד**, מהשרת. המפתח עוקף את ה־RLS, ולכן אסור שיגיע לאפליקציה או לדפדפן. האפליקציה קוראת רק דרך ה־RPCs.
-- **כל האובייקטים מתחילים ב־`app_`.** בפרויקט יש גם טבלאות `tmz_*` של מערכת אחרת; לא נוגעים בהן.
-- **כל שורה של המנוע נושאת `external_id` יציב** (המזהה אצל המנוע), וכותבים תמיד ב־upsert לפיו. כך אפשר לשלוח שוב את אותה ידיעה או מהדורה בלי ליצור כפילויות, ותיקון הוא פשוט שליחה חוזרת.
-- **זמנים ב־ISO 8601 עם אזור זמן** (למשל `2026-09-25T07:30:00+03:00`). השדה `published_at` קובע מתי השורה נראית: ה־RPCs וה־RLS מסתירים כל מה ש־`published_at` שלו בעתיד, כך שאפשר להכין מהדורה מראש.
-- **ערכים מותרים** (CHECK בבסיס הנתונים): שפה `he|en|fr`, קהל `general|youth`, רמה `critical|important|general`, סגנון `calm|human|informative|light`, סוג ידיעה `news|good_news|community`, סוג מהדורה `morning|noon|evening|erev_shabbat|motzash|special`.
-- **בסיס הכתובת**: `https://<project-ref>.supabase.co`. בדוגמאות: `$SUPABASE_URL` ו־`$SERVICE_KEY`.
-
-כותרות לכל קריאת REST:
+- **שום דבר לא משתנה בזרימה הקיימת.** המנוע ממשיך לכתוב ל־`tamzit_editions` ול־`tamzit_edition_elements` בדיוק כמו היום, והאפליקציה מציגה את המהדורות האלה כמו שהן. כל מה שמתואר בהמשך הוא תוספת אופציונלית שמשפרת את מה שהאפליקציה מציגה.
+- **השינויים בטבלאות הקיימות הם תוספות בלבד:** עמודות חדשות עם ברירות מחדל, אינדקסים, ו־trigger אחד מסוג AFTER INSERT על `tamzit_editions` (ההתראה על עדכון מיוחד), שלא מכשיל אף פעם את ההכנסה של המנוע. לא נמחק, לא שונה שם ולא שונה סוג של אף עמודה, לא שונו ערכים קיימים ולא נוספה מדיניות RLS לטבלאות האלה. האפליקציה קוראת אותן רק דרך פונקציות ה־RPC שלה.
+- **הכתיבה נעשית עם מפתח ה־service role בלבד**, מהשרת. המפתח עוקף את ה־RLS ולכן אסור שיגיע לאפליקציה.
+- **האובייקטים של האפליקציה מתחילים ב־`app_`.** טבלאות אחרות בפרויקט (`news_items`, `news_summaries`, `scheduled_summaries`, `promo_*` ועוד) לא קשורות לאפליקציה.
+- בדוגמאות: `$SUPABASE_URL` (למשל `https://<project-ref>.supabase.co`) ו־`$SERVICE_KEY`, עם הכותרות:
 
 ```http
 apikey: $SERVICE_KEY
@@ -19,114 +16,105 @@ Authorization: Bearer $SERVICE_KEY
 Content-Type: application/json
 ```
 
-## הדרך המומלצת: מהדורה שלמה בקריאה אחת
+## מה האפליקציה עושה עם המהדורות של היום (בלי שום שינוי במנוע)
 
-הפונקציה `app_engine_upsert_edition(p_edition jsonb)` (service role בלבד) מקבלת מהדורה עם הידיעות והגרסאות שלה, ועושה הכל בטרנזקציה אחת:
+- **מהדורה:** כל שורה ב־`tamzit_editions` היא מהדורה. השפה נקבעת לפי `language` (`hebrew`, `english`, `french`), והקהל לפי `edition_type`: `teens` הוא מסלול הנוער, וכל השאר קהל כללי. סוג המהדורה באפליקציה נקבע לפי `time_slot` (`בוקר`, `צהריים`/`צוהריים`, `ערב`, `יומי`). `special_update` הוא עדכון מיוחד, ומהדורה שכותרתה "מוצאי שבת" או "ערב שבת/חג" מקבלת את הסוג המתאים. זמן הפרסום הוא `created_at`.
+- **כפילויות:** המנוע מכניס היום כל מהדורה כמה פעמים, שורה לכל קבוצת וואטסאפ. האפליקציה מאחדת שורות זהות של אותו מועד ואותו יום לשורה הראשונה. אם אותו מועד נשלח שוב עם טקסט אחר (למשל תיקון), **הטקסט החדש ביותר מנצח**. בעדכונים מיוחדים נשמר כל טקסט שונה בנפרד.
+- **מסלולים:** קורא שבחר מהדורה אחת ביום מקבל את `daily`, קורא של 2–3 מהדורות מקבל את `classic`, וקורא נוער מקבל את `teens`. ביום שאין בו מהדורה במסלול של הקורא, האפליקציה לוקחת את המסלול הבא: נוער ← classic ← daily, יומי ← classic, classic ← daily. העדכונים המיוחדים מגיעים לכל הקוראים באותה שפה.
+- **ידיעות:** האפליקציה מפרקת את `main_text` בשרת:
+  - שורת כותרת של פרק (`📌 *_החזית הדרומית:_*`, וגם `📌 החזית הדרומית:`, `⬆️ *…:*`, `> *…:*`) היא שם הנושא (`topic_name`).
+  - כל תבליט `• …`, יחד עם שורות ההמשך שלו, הוא ידיעה אחת.
+  - הפרק "ונסיים בטוב" (וגם "On a Positive Note" ו־"Et pour finir sur une bonne note") הוא הידיעה הטובה.
+  - המערכת מדלגת על כותרת המהדורה, על קטעי קידום בין מפרידי `•   •   •`, על "תוכן שיווקי", על הודעות "קוראים יקרים", על קרדיטים ועל שורות שיש בהן רק קישור. סימוני WhatsApp (`*`, `_`, `~`) מוסרים.
+  - הנושא באפליקציה (`topic_id`) נקבע לפי מילות המפתח ב־`app_topics.keywords`: למשל "החזית…" היא `security`, "מדיניות, משפט ופוליטיקה" היא `politics` ו"מסביב לעולם" היא `world`. פרק בלי התאמה, כמו "מהמתרחש בארץ", מוצג לכל הקוראים.
+  - לידיעה מפורקת אין כותרת (`headline` ריק), אלא אם התבליט מתחיל ב־`*כותרת:*`. רמת החשיבות שלה היא `important`, ובעדכון מיוחד `critical`.
+- **כדי שהפירוק ימשיך לעבוד**, כדאי לשמור על המבנה הנוכחי: מפרידי `•   •   •` בין הכותרת, הקידום, החדשות והקרדיטים; כותרת פרק בשורה נפרדת שמסתיימת בנקודתיים; תבליט `• ` לכל ידיעה; ושם קבוע לפרק הידיעה הטובה. פרק חדש עם שם חדש יופיע באפליקציה בלי נושא, ואם צריך לשייך אותו לנושא מוסיפים מילת מפתח ל־`app_topics.keywords`.
+- **אודיו ופרסומות:** שורות `audio` ב־`tamzit_edition_elements` הופכות לנגן של המהדורה. קישור Google Drive מומר לקישור הורדה ישיר, ולכן הקובץ צריך להיות משותף ב־"כל מי שיש לו את הקישור". שורות `ad` ו־`cta_link` מוצגות כפרסומת לקוראים בלי מנוי: המפרסם הוא השורה המודגשת הראשונה, והטקסט מוצג בלי סימונים ובלי שורת "המהדורה בחסות". `donation_campaign` לא מוצג במהדורה. מספיק שהאלמנט מקושר לאחת השורות הכפולות של המהדורה.
 
-1. upsert של המהדורה לפי `external_id` (בסטטוס `draft` בזמן הכתיבה),
-2. upsert של כל ידיעה לפי `external_id`, ושל כל גרסה לפי `(item_id, language, audience, style)`,
-3. החלפת רשימת הידיעות של המהדורה ברשימה שנשלחה (הסדר במערך הוא ה־`position`),
-4. ורק בסוף כתיבת הסטטוס הסופי (ברירת המחדל `published`).
+## שיפור: ידיעות מובנות (`processed_stories` + אלמנטים מסוג `story`)
 
-הסטטוס נכתב אחרון בכוונה: כך עדכון מיוחד שולח התראה רק כשהידיעות שלו כבר בבסיס הנתונים.
+כשהמנוע כותב ידיעות מובנות, האפליקציה מקבלת כותרת, רמת חשיבות אמיתית, נושא, גרסה לכל סגנון, קהל נוער, קהילות ותיקונים. מהדורה שיש לה אלמנטים מסוג `story` מוצגת מהידיעות האלה, ולא מפירוק הטקסט.
+
+עמודות שנוספו לטבלאות הקיימות (לכולן יש ברירת מחדל):
+
+- `processed_stories`: `kind` (`news` | `good_news` | `community`, ברירת מחדל `news`), `community_id` (מזהה מ־`app_communities`), `status` (`published` | `retracted`), `corrected_at`, ו־`versions jsonb`.
+- `tamzit_edition_elements`: `story_id` (← `processed_stories`, on delete cascade) ו־`position`.
+
+המבנה של `versions` הוא שפה ← קהל ← סגנון:
+
+```json
+{
+  "he": {
+    "general": {
+      "calm":        { "headline": "חם מהרגיל היום, ובערב נעים יותר", "body": "הטמפרטורות יגיעו לכ־34 מעלות…" },
+      "informative": { "headline": "34 מעלות בשפלה היום", "body": "עומס חום בינוני…" },
+      "human":       { "headline": "…", "body": "…" },
+      "light":       { "headline": "…", "body": "…" }
+    },
+    "youth": { "light": { "headline": "…", "body": "…" }, "calm": { "headline": "…", "body": "…" } }
+  },
+  "en": { "general": { "informative": { "headline": "Up to 34°C in the lowlands today", "body": "…" } } },
+  "fr": { "general": { "informative": { "headline": "…", "body": "…" } } }
+}
+```
+
+האפליקציה בוחרת גרסה לפי הסדר הזה: שפת הקורא, אחר כך הקהל שלו (קהל נוער נופל ל־`general`), אחר כך הסגנון שלו, אחר כך `informative`, ואחר כך כל סגנון אחר. `title` ו־`summary` הם גרסת הבסיס בעברית. `severity` קובע את הרמה: 3 ומעלה `critical`, 2 `important`, אחרת `general`. `topic` הוא מזהה מ־`app_topics` (למשל `security`) או טקסט חופשי שעובר התאמה לפי מילות המפתח. בידיעה על אסון, מוות או אבל, הגרסאות `light` ו־`human` נכתבות בנוסח המרגיע (ראו `design-system/app/03-editorial.md`).
+
+### הדרך המומלצת: `app_engine_upsert_edition`
+
+פונקציה אחת (service role בלבד) כותבת בטרנזקציה אחת את שורת `tamzit_editions`, את ה־`processed_stories` ואת האלמנטים מסוג `story`. בלי `id` נוצרת מהדורה חדשה. עם `id` המהדורה הקיימת מתעדכנת, והאלמנטים מסוג `story` שלה מוחלפים. ידיעה עם `id` קיים מתעדכנת, וידיעה בלי `id` נוצרת. אם לא נשלח `main_text`, הפונקציה בונה טקסט WhatsApp פשוט מהסיכומים.
 
 ```bash
 curl -X POST "$SUPABASE_URL/rest/v1/rpc/app_engine_upsert_edition" \
   -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" -H 'Content-Type: application/json' \
   -d '{
   "p_edition": {
-    "external_id": "ed-he-general-2026-09-25-morning",
-    "edition_type": "morning",
     "language": "he",
-    "audience": "general",
-    "published_at": "2026-09-25T07:30:00+03:00",
-    "title": null,
-    "items": [
-      {
-        "external_id": "item-48213",
-        "topic_id": "weather",
-        "level": "important",
-        "kind": "news",
-        "published_at": "2026-09-25T06:50:00+03:00",
-        "versions": [
-          { "language": "he", "audience": "general", "style": "calm",
-            "headline": "חם מהרגיל היום, ובערב נעים יותר",
-            "body": "הטמפרטורות יגיעו לכ־34 מעלות בשפלה ובעמקים. מספיק לשתות מים ולהישאר בצל בשעות הצהריים." },
-          { "language": "he", "audience": "general", "style": "informative",
-            "headline": "34 מעלות בשפלה ובעמקים היום, הקלה בערב",
-            "body": "עומס חום בינוני: עד 34 מעלות בצהריים. משרד הבריאות ממליץ לשתות ולהימנע ממאמץ בשמש בין 11:00 ל־16:00." },
-          { "language": "en", "audience": "general", "style": "informative",
-            "headline": "Up to 34°C in the lowlands today",
-            "body": "A moderate heat load is expected, peaking around midday." }
-        ]
-      },
-      {
-        "external_id": "item-48220",
-        "kind": "good_news",
-        "topic_id": "science",
-        "level": "general",
-        "versions": [ { "language": "he", "style": "calm", "headline": "…", "body": "…" } ]
-      }
+    "edition_type": "classic",
+    "time_slot": "בוקר",
+    "edition_date": "2026-09-27",
+    "main_text": "📻 *תמצית החדשות*\n…",
+    "stories": [
+      { "title": "34 מעלות בשפלה היום", "summary": "עומס חום בינוני…", "severity": 2, "topic": "weather",
+        "versions": { "he": { "general": { "calm": { "headline": "…", "body": "…" } } } } },
+      { "title": "…", "summary": "…", "severity": 1, "topic": "science", "kind": "good_news" }
     ]
   }
 }'
 ```
 
-התשובה היא ה־`id` של המהדורה. שליחה חוזרת של אותו JSON לא משנה דבר; שליחה עם טקסט מתוקן מעדכנת את הגרסאות.
+התשובה: `{ "edition_id": 2101, "story_ids": [311, 312] }`. כדאי לשמור את המזהים ולשלוח אותם שוב (`"id"` במהדורה ובכל ידיעה) כשמתקנים. סדר המערך `stories` הוא הסדר במהדורה.
 
-אותה ידיעה יכולה להופיע בכמה מהדורות (למשל גם בעברית וגם באנגלית, או במהדורת הבוקר ובמהדורת הנוער): שולחים אותה עם אותו `external_id`, והגרסאות מצטרפות לאותה ידיעה.
+### כתיבה ישירה (REST)
 
-## כתיבה ישירה לטבלאות (REST)
-
-אם נוח יותר לכתוב טבלה־טבלה, זה הסדר.
-
-### ידיעה (`app_items`)
+אם נוח יותר לכתוב טבלה־טבלה: קודם `processed_stories` (עם `return=representation` כדי לקבל את ה־`id`), אחר כך שורת `tamzit_editions` כמו היום, ואז שורה ב־`tamzit_edition_elements` לכל ידיעה:
 
 ```bash
-curl -X POST "$SUPABASE_URL/rest/v1/app_items?on_conflict=external_id" \
+curl -X POST "$SUPABASE_URL/rest/v1/tamzit_edition_elements" \
   -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" -H 'Content-Type: application/json' \
-  -H 'Prefer: resolution=merge-duplicates,return=representation' \
-  -d '[{ "external_id": "item-48213", "topic_id": "weather", "level": "important", "kind": "news",
-         "published_at": "2026-09-25T06:50:00+03:00", "status": "published" }]'
+  -d '[{ "edition_id": 2101, "element_type": "story", "story_id": 311, "position": 1 },
+       { "edition_id": 2101, "element_type": "story", "story_id": 312, "position": 2 }]'
 ```
 
-התשובה מחזירה את ה־`id` (uuid) שצריך בשלבים הבאים. ידיעה מקומית: `kind = 'community'` ו־`community_id` (למשל `jerusalem`). "ונסיים בטוב": `kind = 'good_news'`.
+מספיק לקשר את הידיעות לשורה אחת מבין השורות הכפולות של המהדורה, לשורה הראשונה. אם אין כפילויות, זה פשוט השורה של המהדורה.
 
-### גרסאות (`app_item_versions`)
+### תיקון וביטול
 
-שורה לכל שפה × קהל × סגנון שהמנוע הפיק. סגנון חסר נופל ל־`informative`, ואחר כך לכל סגנון קיים, ולכן **כדאי תמיד לכתוב לפחות `informative`** לכל שפה. בידיעות על אסון, מוות או אבל, הגרסאות `light` ו־`human` צריכות להיות בנוסח המרגיע (ראו `design-system/app/03-editorial.md`).
+- **ידיעה מובנית:** מעדכנים את `versions` (או `title`/`summary`) ואת `corrected_at`, והאפליקציה מציגה "עודכן" עם השעה. `status = 'retracted'` מסיר את הידיעה מהמהדורות ומהחיפוש.
+- **מהדורה בלי ידיעות מובנות:** שולחים שוב את אותו מועד עם הטקסט המתוקן (שורה חדשה באותו `edition_date`, `edition_type` ו־`time_slot`), והטקסט החדש מחליף את הישן.
+- **שמירה:** המשימות של המנוע (`delete_old_news_data`, `run_14_day_maintenance`) מוחקות ידיעות מ־`processed_stories` אחרי 14 ימים. האלמנטים שלהן נמחקים איתן, והמהדורה חוזרת להיות מוצגת מפירוק הטקסט. לידיעה שקורא שמר נשמר עותק (`app_saved_items.snapshot`).
 
-```bash
-curl -X POST "$SUPABASE_URL/rest/v1/app_item_versions?on_conflict=item_id,language,audience,style" \
-  -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" -H 'Content-Type: application/json' \
-  -H 'Prefer: resolution=merge-duplicates' \
-  -d '[{ "item_id": "<uuid>", "language": "he", "audience": "general", "style": "calm",
-         "headline": "…", "body": "…" },
-       { "item_id": "<uuid>", "language": "he", "audience": "youth", "style": "light",
-         "headline": "…", "body": "…" }]'
-```
+## עדכון מיוחד והתראות
 
-### מהדורה (`app_editions`) והידיעות שלה (`app_edition_items`)
+- כל שורה חדשה ב־`tamzit_editions` עם `edition_type = 'special_update'` מפעילה את ה־trigger `app_tamzit_editions_push`. הוא רושם את העדכון ב־`app_push_log` לפי השפה והטקסט, כך שהשורות הכפולות של אותו עדכון שולחות **התראה אחת בלבד**, וקורא דרך `pg_net` לפונקציה `app-push-special`. ה־trigger לא מכשיל את ההכנסה של המנוע אף פעם.
+- שורה שנכנסת יותר משעתיים אחרי ה־`created_at` שלה, או עדכון שעברו מאז יותר מ־6 שעות, לא שולחים התראה.
+- ההתראה נשלחת למכשירים של קוראים עם `special_push = true` בשפת העדכון, חוץ מקוראים שהעיר שלהם (`shabbat_city_id`) נמצאת עכשיו בשבת או בחג לפי `app_rest_periods`. הנוסח הוא "עדכון מיוחד" וטקסט כללי. אם הקורא בחר `headline_in_push`, ההתראה מביאה את תחילת הידיעה.
+- ההתראות לא פעילות עד שמגדירים ב־Supabase את הסוד `FCM_SERVICE_ACCOUNT` (קובץ ה־JSON של חשבון השירות של Firebase). בלעדיו הפונקציה מחזירה `{ skipped: true }`. טוקנים של Expo (`ExponentPushToken[…]`) נשלחים דרך שירות ההתראות של Expo גם בלי הסוד.
+- מכניסת השבת ועד צאתה לא שולחים עדכונים מיוחדים.
 
-1. יוצרים את המהדורה ב־upsert עם `"status": "draft"` (`on_conflict=external_id`, `return=representation`).
-2. כותבים את `app_edition_items`: `{ edition_id, item_id, position }` (ב־`on_conflict=edition_id,item_id`). ידיעה שהוצאה מהמהדורה נמחקת מהטבלה הזו.
-3. מעדכנים את המהדורה ל־`"status": "published"`:
+## משוב והודעות לקוראים
 
-```bash
-curl -X PATCH "$SUPABASE_URL/rest/v1/app_editions?external_id=eq.ed-he-general-2026-09-25-morning" \
-  -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" -H 'Content-Type: application/json' \
-  -d '{ "status": "published" }'
-```
-
-מהדורה נכתבת לכל שילוב של שפה וקהל בנפרד (`he/general`, `he/youth`, `en/general`, `fr/general`). הקורא רואה רק מהדורות בשפה ובקהל שלו.
-
-המהדורה האישית של כל קורא נבנית מכל המהדורות שפורסמו מאז המהדורה הקודמת שלו, ולכן המנוע לא צריך להכיר את הקוראים: מספיק לפרסם את מהדורות הבוקר, הצהריים והערב בזמן.
-
-## תיקון, ביטול ומשוב
-
-- **תיקון ידיעה**: כותבים מחדש את הגרסאות (upsert) ומעדכנים `corrected_at` לזמן התיקון. האפליקציה מציגה "עודכן" עם השעה.
-- **ביטול ידיעה**: `status = 'retracted'`. הידיעה נעלמת מכל המהדורות, מהחיפוש ומהשמורים.
-- **משוב מהקוראים**: `app_feedback` עם `status = 'new'`. תשובה של העורכים: מעדכנים `reply`, `replied_at`, `status = 'replied'`, ושולחים לקורא הודעה בתוך האפליקציה:
+המשוב מהקוראים נכתב ל־`app_feedback` עם `status = 'new'`. בשדה `item_id` מופיע מזהה הידיעה באפליקציה: `e<מזהה המהדורה>-<מספר>` לידיעה שפורקה מהטקסט, או `s<מזהה הידיעה>` לידיעה מובנית. כדי לענות, מעדכנים `reply`, `replied_at` ו־`status = 'replied'`, ושולחים לקורא הודעה בתוך האפליקציה:
 
 ```sql
 insert into public.app_messages (profile_id, title, body, item_id)
@@ -134,53 +122,9 @@ select profile_id, 'תשובה מהעורכים', 'תודה על השאלה. …
 from public.app_feedback where id = '<feedback id>';
 ```
 
-## אודיו (`app_audio`)
+## פרופילים (`user_preferences`)
 
-1. מעלים את הקובץ ל־Storage, לדלי הציבורי `app-media`, תחת `audio/`:
-
-```bash
-curl -X POST "$SUPABASE_URL/storage/v1/object/app-media/audio/2026-09-25-edition-he.mp3" \
-  -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY" \
-  -H 'Content-Type: audio/mpeg' -H 'x-upsert: true' --data-binary @edition.mp3
-```
-
-2. הכתובת הציבורית: `$SUPABASE_URL/storage/v1/object/public/app-media/audio/2026-09-25-edition-he.mp3`.
-3. כותבים שורה (upsert לפי `external_id`):
-
-```json
-{ "external_id": "audio-2026-09-25-he", "kind": "edition", "edition_id": "<uuid או null>",
-  "language": "he", "audience": "general", "title": "המהדורה הקולית · יום שישי 25.9",
-  "audio_url": "https://…/app-media/audio/2026-09-25-edition-he.mp3", "duration_sec": 84,
-  "published_at": "2026-09-25T07:00:00+03:00", "status": "published" }
-```
-
-המהדורה מציגה את האודיו שמקושר אליה, ואם אין, את האודיו האחרון בשפה ובקהל שלה מ־24 השעות האחרונות, עם עדיפות ל־`kind = 'edition'` על פני `flash`.
-
-## פרסומות (`app_ads`)
-
-פרסומת אחת במהדורה, רק לקוראים בלי מנוי. נבחרת פרסומת פעילה (`active`), בטווח התאריכים (`starts_at` עד `ends_at`), בשפה ובקהל של המהדורה. פרסומת עם `edition_id` מופיעה רק במהדורה הזו וקודמת לאחרות; בין השאר הבחירה אקראית לפי `weight`.
-
-```json
-{ "external_id": "ad-2026-10-farm", "sponsor": "…", "body": "טקסט קצר, בלי תמונות", "link_url": "https://…",
-  "language": "he", "audience": "general", "starts_at": "2026-10-01T00:00:00+03:00",
-  "ends_at": "2026-10-31T23:59:00+02:00", "weight": 2, "active": true }
-```
-
-## עדכון מיוחד והתראות
-
-עדכון מיוחד הוא מהדורה מסוג `special` עם ידיעה אחת או יותר (בדרך כלל ידיעה קריטית אחת). באפליקציה הוא מופיע בפרק נפרד בראש המהדורה.
-
-**מה שולח התראה**: הטריגר `app_editions_push_special` על `app_editions` קורא לפונקציה `app-push-special` (דרך `pg_net`) ברגע שמהדורה מסוג `special` עוברת ל־`published`: כשהיא נוצרת ישר כ־`published`, או במעבר מ־`draft` ל־`published`. עדכונים נוספים של אותה מהדורה לא שולחים שוב, והפונקציה מסמנת `pushed_at` כדי לא לשלוח פעמיים.
-
-לכן:
-
-- כותבים את העדכון עם `app_engine_upsert_edition` (הסטטוס נכתב אחרון), או ב־REST: קודם `draft`, אחר כך הידיעות, ורק בסוף `published`.
-- `published_at` של עדכון מיוחד צריך להיות "עכשיו". ההתראה נשלחת ברגע הפרסום, לא בזמן עתידי.
-- ההתראה נשלחת למכשירים של קוראים עם `special_push = true`, באותה שפה ובאותו קהל. קוראים שבעיר השבת שלהם (`shabbat_city_id`) נמצאים עכשיו בשבת או ביום טוב לא מקבלים התראה.
-- נוסח ההתראה: "עדכון מיוחד" וטקסט כללי, או הכותרת של הידיעה הראשונה אם הקורא בחר `headline_in_push`.
-- ההתראות לא פעילות עד שמגדירים ב־Supabase את הסוד `FCM_SERVICE_ACCOUNT` (ה־JSON של חשבון השירות של Firebase). בלעדיו הפונקציה מחזירה `{ skipped: true }`. טוקנים של Expo (`ExponentPushToken[…]`) נשלחים דרך שירות ההתראות של Expo גם בלי הסוד.
-
-התראות המהדורה הרגילות (בשעות שהקורא בחר) אינן חלק מהמנגנון הזה.
+קוראי האפליקציה נשמרים ב־`user_preferences`, ו־`user_id` שם הוא המזהה ב־`auth.users`. הפונקציה `app-auth-verify` יוצרת את השורה בהרשמה. השדות הקיימים משמשים כך: `name` הוא השם, `persona` הוא הסגנון (`Calming`, `Informative`, `Buddy`, `Human`), `anxiety_level` הוא רמת הידיעות (`High`=רק קריטיות, `Medium`=קריטיות וחשובות, `Low`=הכל), `update_frequency` הוא מספר המהדורות ביום, ו־`interests` הם הנושאים. העמודות שנוספו (`phone`, `email`, `language`, `audience`, `slot_times` ועוד) מתוארות בחוזה. השורות הקיימות קיבלו את ברירות המחדל, ולא נגענו בהן.
 
 ## מנויים (`app_subscriptions`)
 
@@ -202,9 +146,9 @@ curl -X POST "$SUPABASE_URL/rest/v1/app_subscriptions?on_conflict=external_ref" 
 
 ## לוח זמנים, שבת וחג
 
-- המנוע מפרסם מהדורות בוקר, צהריים וערב. ביום שישי ובערב חג מפרסמים מהדורת `erev_shabbat` לפני כניסת השבת, ואחרי צאת השבת או החג מהדורת `motzash` שמסכמת את מה שהיה. `title` יכול לדרוס את השם (למשל "מהדורת מוצאי יום הכיפורים").
+- המנוע מפרסם מהדורות בוקר, צהריים וערב. ביום שישי ובערב חג שולחים מהדורה לפני כניסת השבת, ואחרי צאת השבת או החג מהדורה שמסכמת את מה שהיה. האפליקציה מזהה אותן לפי שם המהדורה בכותרת ("מהדורת מוצאי שבת", "ערב שבת"), ולכן כדאי לשמור על השמות האלה.
 - מכניסת השבת ועד צאתה לא מפרסמים מהדורות ולא עדכונים מיוחדים.
-- עדיף לכתוב מהדורה כמה דקות מראש עם `published_at` בשעה המתוכננת: היא תופיע בדיוק בזמן.
+- מהדורה מוצגת מרגע ה־`created_at` שלה. שורה שה־`created_at` שלה בעתיד מוסתרת עד אותו רגע.
 
 ### זמני שבת וחג לפי עיר (`app_rest_periods`)
 
@@ -220,26 +164,7 @@ node gen_rest_periods.mjs --city paris    # עיר אחת. גם: --dry (בלי �
 
 - **מתי להריץ שוב:** לפחות פעם בשנה, כי הטבלה מכסה 24 חודשים; ומיד כשמוסיפים עיר ל־`app_cities` או משנים את הקואורדינטות או את `candle_minutes` של עיר. אחרי התאריך האחרון שבטבלה, וגם בפתיחה ראשונה בלי רשת, האפליקציה מחשבת בעצמה שבת רגילה בלבד (מהשקיעה), בלי חגים.
 
-## הטבלאות שכבר קיימות בפרויקט tamzitnews_v1
 
-בפרויקט יש כבר טבלאות של מערכת ההפקה הנוכחית, והאפליקציה לא נוגעת בהן: `news_items` (ידיעות גולמיות מהמקורות), `processed_stories` (ידיעה מעובדת עם `severity` ו־`topic`), `tamzit_editions` ו־`tamzit_edition_elements` (המהדורות שנשלחות היום, עם `edition_type`, `language`, `time_slot`), `scheduled_summaries`, `news_summaries`, `user_preferences`, והדלי `news-audio`.
+## בדיקה
 
-שתי דרכים לחבר אותן לאפליקציה:
-
-1. **המנוע כותב גם לאפליקציה (מומלץ).** בסוף כל הפקה, המנוע קורא ל־`app_engine_upsert_edition` עם המהדורה, הידיעות ורמת החשיבות שלהן, ולכל ידיעה את הגרסאות לפי שפה, קהל וסגנון. כך המבנה של האפליקציה (רמות, נושאים, סגנונות, קהל נוער) מקבל את המידע המלא.
-2. **גשר מהטבלאות הקיימות.** משימה מתוזמנת שממירה שורות חדשות מ־`tamzit_editions` / `tamzit_edition_elements` / `processed_stories` לטבלאות `app_`. `processed_stories.severity` → `level` (למשל 3 ומעלה `critical`, 2 `important`, אחרת `general`), `topic` → `topic_id`, `tamzit_editions.edition_type` / `time_slot` → `edition_type`, `language` → `language`, קבצי `news-audio` → `app_audio`. החיסרון: אין בטבלאות הקיימות גרסה לכל סגנון ולקהל נוער, אז כל הגרסאות יהיו זהות עד שהמנוע יפיק אותן.
-
-כשהמנוע מתחיל לכתוב תוכן אמיתי: להסיר את משימת הדוגמה (`select cron.unschedule('app_sample_roll_weekly');`) ולמחוק את נתוני הדוגמה לפי הסעיף "נתוני הדוגמה".
-
-## נתוני הדוגמה
-
-הפרויקט מכיל כרגע תוכן לדוגמה (ידיעות כלליות, בלי אנשים או אירועים אמיתיים), שכל ה־`external_id` שלו מתחיל ב־`sample-`. לפני העלייה לאוויר מוחקים אותו:
-
-```sql
-delete from public.app_audio    where external_id like 'sample-%';
-delete from public.app_ads      where external_id like 'sample-%';
-delete from public.app_editions where external_id like 'sample-%';
-delete from public.app_items    where external_id like 'sample-%';
-```
-
-(קובצי האודיו לדוגמה נמצאים ב־`app-media/audio/sample-*`.) המחולל `supabase/seed/generate_sample_content.py` יוצר את התוכן מחדש ביחס לזמן הנוכחי, ו־`supabase/tests/smoke.sh` בודק את כל הזרימה מקצה לקצה.
+`supabase/tests/smoke.sh` בודק את כל הזרימה מקצה לקצה על הנתונים האמיתיים: הרשמה וכניסה, כל ה־RPCs, ה־RLS, פירוק מהדורה אחרונה בכל שפה ובכל סוג, וה־trigger של העדכון המיוחד. הבדיקה של ה־trigger רצה על עותק זמני של הטבלה, ולכן הבדיקה לא כותבת כלום לטבלאות של המנוע. `supabase/scripts/setup.sh` מריץ את כל ה־migrations בטרנזקציה אחת, ואפשר להריץ אותו שוב בבטחה.

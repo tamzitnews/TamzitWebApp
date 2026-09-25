@@ -3,7 +3,7 @@
 // → 200 { access_token, refresh_token, expires_in, user_id, is_new }  |  4xx { error }
 // Checks the 6-digit code issued by app-auth-start (or the demo code for the demo phones), then mints a
 // real Supabase session for the account email (admin generateLink + verifyOtp; no email is sent).
-// Creates the app_profiles row on the first verify of a registration.
+// Creates the user_preferences row (the profile) on the first verify of a registration.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
   adminClient,
@@ -81,8 +81,8 @@ Deno.serve(async (req) => {
     // Registration data (needed before minting so an expired registration does not create a user).
     let pending: Record<string, unknown> | null = null;
     const { data: existing, error: exError } = await db
-      .from('app_profiles')
-      .select('id')
+      .from('user_preferences')
+      .select('user_id')
       .eq('phone', phone)
       .maybeSingle();
     if (exError) throw exError;
@@ -102,31 +102,41 @@ Deno.serve(async (req) => {
 
     let isNew = false;
     if (existing) {
-      if (existing.id !== session.user_id) {
+      if (existing.user_id !== session.user_id) {
         console.error('app-auth-verify: profile id does not match the auth user for', phone);
         return json({ error: 'server_error' }, 500);
       }
     } else {
       const cityId = pending ? await cityIdFor(db, (pending.city as string) ?? null) : null;
-      const row: Record<string, unknown> = pending
-        ? {
-          id: session.user_id,
-          full_name: pending.full_name,
-          phone,
-          email,
-          birth_year: pending.birth_year ?? null,
-          city: pending.city ?? null,
-        }
-        : {
-          id: session.user_id,
-          full_name: demo?.plan === 'premium' ? 'הדגמה פרימיום' : demo?.plan === 'family' ? 'הדגמה משפחתי' : 'משתמש הדגמה',
-          phone,
-          email,
-          onboarded: true,
-          communities: ['jerusalem'],
-        };
-      if (cityId) row.shabbat_city_id = cityId;
-      const { error: insError } = await db.from('app_profiles').insert(row);
+      // user_preferences is the existing profile table: contract fields map to name / persona (style) /
+      // anxiety_level (level_filter) / update_frequency (frequency) / interests (topics).
+      const row: Record<string, unknown> = {
+        user_id: session.user_id,
+        name: pending
+          ? pending.full_name
+          : demo?.plan === 'premium' ? 'הדגמה פרימיום' : demo?.plan === 'family' ? 'הדגמה משפחתי' : 'משתמש הדגמה',
+        phone,
+        email,
+        birth_year: pending ? pending.birth_year ?? null : null,
+        city: pending ? pending.city ?? null : null,
+        persona: 'Calming',
+        anxiety_level: 'Medium',
+        update_frequency: 3,
+        slot_times: ['07:30', '13:00', '20:00'],
+        interests: [],
+        communities: pending ? [] : ['jerusalem'],
+        language: 'he',
+        audience: 'general',
+        special_push: true,
+        edition_push: true,
+        headline_in_push: false,
+        text_scale: 1,
+        theme: 'system',
+        shabbat_city_id: cityId ?? 'jerusalem',
+        onboarded: !pending,
+        updated_at: new Date().toISOString(),
+      };
+      const { error: insError } = await db.from('user_preferences').insert(row);
       if (insError && insError.code !== '23505') throw insError;
       isNew = !insError;
       await db.from('app_pending_registrations').delete().eq('phone', phone);

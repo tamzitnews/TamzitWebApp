@@ -1,23 +1,40 @@
 -- Tamzit app: reference data (topics, cities, communities, settings). Idempotent upserts.
 
-insert into public.app_topics (id, name_he, name_en, name_fr, sort, is_default, active) values
-  ('politics',  'פוליטיקה',        'Politics',            'Politique',               10, false, true),
-  ('security',  'ביטחון',          'Security',            'Sécurité',                20, true,  true),
-  ('economy',   'כלכלה',           'Economy',             'Économie',                30, true,  true),
-  ('health',    'בריאות',          'Health',              'Santé',                   40, true,  true),
-  ('education', 'חינוך',           'Education',           'Éducation',               50, true,  true),
-  ('law',       'משפט',            'Law',                 'Justice',                 60, false, true),
-  ('world',     'עולם',            'World',               'Monde',                   70, true,  true),
-  ('science',   'מדע וטכנולוגיה',  'Science & Tech',      'Sciences et technologie', 80, false, true),
-  ('transport', 'תחבורה',          'Transport',           'Transports',              90, true,  true),
-  ('weather',   'מזג אוויר',       'Weather',             'Météo',                  100, true,  true),
-  ('consumer',  'צרכנות',          'Consumer',            'Consommation',           110, false, true),
-  ('judaism',   'יהדות ומסורת',    'Judaism & Tradition', 'Judaïsme et tradition',  120, false, true),
-  ('culture',   'תרבות',           'Culture',             'Culture',                130, false, true),
-  ('sports',    'ספורט',           'Sports',              'Sport',                  140, false, true)
+-- keywords: case-insensitive substrings of section titles in the WhatsApp editions (he/en/fr) -> topic.
+-- The lowest sort wins ("מדיניות, משפט ופוליטיקה" -> politics). Sections without a match ("מהמתרחש בארץ",
+-- "ונסיים בטוב") get no topic and are shown to everyone.
+insert into public.app_topics (id, name_he, name_en, name_fr, sort, is_default, active, keywords) values
+  ('politics',  'פוליטיקה',        'Politics',            'Politique',               10, false, true,
+   array['מדיניות', 'פוליטיקה', 'פוליטי', 'בחירות', 'כנסת', 'politic', 'policy', 'election', 'knesset', 'politique', 'élection']),
+  ('security',  'ביטחון',          'Security',            'Sécurité',                20, true,  true,
+   array['ביטחון', 'בטחון', 'חזית', 'צבא', 'צה"ל', 'איו"ש', 'יהודה ושומרון', 'security', 'front', 'idf', 'military', 'yehuda', 'shomron', 'sécurité', 'securite', 'frontière', 'tsahal', 'yehouda', 'au nord', 'au sud']),
+  ('economy',   'כלכלה',           'Economy',             'Économie',                30, true,  true,
+   array['כלכלה', 'כלכלי', 'בורסה', 'economy', 'economic', 'finance', 'économie', 'economie']),
+  ('health',    'בריאות',          'Health',              'Santé',                   40, true,  true,
+   array['בריאות', 'רפואה', 'health', 'medical', 'santé', 'sante']),
+  ('education', 'חינוך',           'Education',           'Éducation',               50, true,  true,
+   array['חינוך', 'education', 'éducation', 'education']),
+  ('law',       'משפט',            'Law',                 'Justice',                 60, false, true,
+   array['משפט', 'law', 'court', 'justice']),
+  ('world',     'עולם',            'World',               'Monde',                   70, true,  true,
+   array['עולם', 'world', 'international', 'monde']),
+  ('science',   'מדע וטכנולוגיה',  'Science & Tech',      'Sciences et technologie', 80, false, true,
+   array['מדע', 'טכנולוגיה', 'science', 'tech', 'technolog']),
+  ('transport', 'תחבורה',          'Transport',           'Transports',              90, true,  true,
+   array['תחבורה', 'transport', 'traffic']),
+  ('weather',   'מזג אוויר',       'Weather',             'Météo',                  100, true,  true,
+   array['מזג', 'weather', 'météo', 'meteo']),
+  ('consumer',  'צרכנות',          'Consumer',            'Consommation',           110, false, true,
+   array['צרכנות', 'consumer', 'consommation']),
+  ('judaism',   'יהדות ומסורת',    'Judaism & Tradition', 'Judaïsme et tradition',  120, false, true,
+   array['יהדות', 'מסורת', 'judaism', 'judaïsme', 'tradition']),
+  ('culture',   'תרבות',           'Culture',             'Culture',                130, false, true,
+   array['תרבות', 'culture']),
+  ('sports',    'ספורט',           'Sports',              'Sport',                  140, false, true,
+   array['ספורט', 'sport'])
 on conflict (id) do update set
   name_he = excluded.name_he, name_en = excluded.name_en, name_fr = excluded.name_fr,
-  sort = excluded.sort, is_default = excluded.is_default, active = excluded.active;
+  sort = excluded.sort, is_default = excluded.is_default, active = excluded.active, keywords = excluded.keywords;
 
 insert into public.app_cities (id, name_he, name_en, name_fr, lat, lon, tzid, in_israel, candle_minutes, sort, active) values
   ('jerusalem',     'ירושלים',        'Jerusalem',        'Jérusalem',        31.7683, 35.2137, 'Asia/Jerusalem', true, 40,  10, true),
