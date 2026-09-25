@@ -55,7 +55,7 @@ export const EditionHeader = memo(function EditionHeader({
           minHeight: 44,
         }}>
         <T variant="caption" color="inkMuted" style={{ flexShrink: 1 }}>
-          {s.meta(count, minutes)}
+          {count > 0 ? s.meta(count, minutes) : ''}
         </T>
         {onListen ? (
           <Button variant="secondary" icon={Headphones} onPress={onListen}>

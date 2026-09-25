@@ -1,5 +1,5 @@
 import { Search, X } from 'lucide-react-native';
-import { useState, type Ref } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, TextInput, View } from 'react-native';
 
 import { Icon, useIsRTL } from '@/components/ui';
@@ -8,7 +8,6 @@ import { fonts, radius, space, touchMin } from '@/theme/tokens';
 
 /** The search input (design-system SearchField): pill, search icon, clear button, busy spinner. */
 export function SearchBox({
-  ref,
   value,
   onChangeText,
   onSubmit,
@@ -20,7 +19,6 @@ export function SearchBox({
   autoFocus,
   editable = true,
 }: {
-  ref?: Ref<TextInput>;
   value: string;
   onChangeText: (v: string) => void;
   onSubmit: () => void;
@@ -36,6 +34,7 @@ export function SearchBox({
   const rtl = useIsRTL();
   // The pill's border shows focus (brand, thicker), replacing the browser outline on web.
   const [focused, setFocused] = useState(false);
+  const input = useRef<TextInput>(null);
   return (
     <View
       style={{
@@ -52,7 +51,7 @@ export function SearchBox({
       }}>
       <Icon as={Search} size={20} color="inkMuted" />
       <TextInput
-        ref={ref}
+        ref={input}
         value={value}
         onChangeText={onChangeText}
         onSubmitEditing={onSubmit}
@@ -87,7 +86,10 @@ export function SearchBox({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={clearLabel}
-          onPress={() => onChangeText('')}
+          onPress={() => {
+            onChangeText('');
+            input.current?.focus();
+          }}
           hitSlop={4}
           style={({ pressed }) => ({
             width: touchMin,

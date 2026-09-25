@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { ExternalLink, FileText, Globe, Mail, ShieldCheck } from 'lucide-react-native';
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { View } from 'react-native';
 
 import { Icon, ListGroup, ListRow, T } from '@/components/ui';
@@ -120,8 +120,29 @@ export function AboutScreen() {
   );
 }
 
+type Para = { heading: boolean; text: string };
+
+/** Reflows a plain-text license (hard-wrapped at 80 columns) into paragraphs and headings. */
+function reflow(text: string): Para[] {
+  const out: Para[] = [];
+  for (const block of text.split(/\n\s*\n/)) {
+    const lines = block.split('\n').map((l) => l.trim());
+    const ruled = lines.some((l) => /^-{5,}$/.test(l));
+    const body = lines.filter((l) => l && !/^-{5,}$/.test(l));
+    if (!body.length) continue;
+    // "PREAMBLE", "DEFINITIONS", … start their paragraph on their own line.
+    if (body.length > 1 && /^[A-Z][A-Z &]+$/.test(body[0])) {
+      out.push({ heading: true, text: body[0] });
+      body.shift();
+    }
+    out.push({ heading: ruled, text: body.join(' ') });
+  }
+  return out;
+}
+
 function LicenseCard({ title, license, text }: { title: string; license: string; text: string }) {
   const { c } = useTheme();
+  const paras = useMemo(() => reflow(text), [text]);
   return (
     <View style={{ backgroundColor: c.surfaceRaised, borderRadius: radius.lg, padding: space[4], gap: space[3] }}>
       <View style={{ gap: 2 }}>
@@ -133,9 +154,19 @@ function LicenseCard({ title, license, text }: { title: string; license: string;
         </T>
       </View>
       <View style={{ height: 1, backgroundColor: c.line }} />
-      <T variant="caption" selectable align="left" style={{ writingDirection: 'ltr', fontSize: 13, lineHeight: 19 }}>
-        {text}
-      </T>
+      <View style={{ gap: space[3] }}>
+        {paras.map((p, i) => (
+          <T
+            key={i}
+            variant="caption"
+            weight={p.heading ? 700 : 500}
+            selectable
+            align="left"
+            style={{ writingDirection: 'ltr', fontSize: 13, lineHeight: 19 }}>
+            {p.text}
+          </T>
+        ))}
+      </View>
     </View>
   );
 }

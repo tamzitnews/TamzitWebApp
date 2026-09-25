@@ -46,11 +46,15 @@ Deno.serve(async (req) => {
     if (!code) return json({ error: 'invalid_code' }, 400);
 
     const db = adminClient();
-    if ((await countAttempts(db, phone, 'verify')) >= MAX_VERIFIES) return json({ error: 'rate_limited' }, 429);
-    const attemptId = await recordAttempt(db, phone, 'verify', false);
-
     const settings = await getSettings(db, DEMO_KEYS);
     const demo = demoAccount(settings, phone);
+
+    // Demo phones are shared by testers and store review: no rate limit for them.
+    let attemptId: number | null = null;
+    if (!demo) {
+      if ((await countAttempts(db, phone, 'verify')) >= MAX_VERIFIES) return json({ error: 'rate_limited' }, 429);
+      attemptId = await recordAttempt(db, phone, 'verify', false);
+    }
 
     let email: string;
     let mode: 'register' | 'login' | 'demo';

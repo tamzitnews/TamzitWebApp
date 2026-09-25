@@ -36,16 +36,14 @@ Deno.serve(async (req) => {
     if (!phone) return json({ error: 'invalid_phone' }, 400);
 
     const db = adminClient();
-    if ((await countAttempts(db, phone, 'start')) >= MAX_STARTS) return json({ error: 'rate_limited' }, 429);
-    const attemptId = await recordAttempt(db, phone, 'start', false);
 
-    // Demo accounts: no email, the fixed demo code works in app-auth-verify.
+    // Demo accounts: no email, no rate limit; the fixed demo code works in app-auth-verify.
     const settings = await getSettings(db, DEMO_KEYS);
     const demo = demoAccount(settings, phone);
-    if (demo) {
-      await markAttemptSuccess(db, attemptId);
-      return json({ ok: true, masked_email: maskEmail(demo.email) });
-    }
+    if (demo) return json({ ok: true, masked_email: maskEmail(demo.email) });
+
+    if ((await countAttempts(db, phone, 'start')) >= MAX_STARTS) return json({ error: 'rate_limited' }, 429);
+    const attemptId = await recordAttempt(db, phone, 'start', false);
 
     const { data: profile, error: profileError } = await db
       .from('app_profiles')
