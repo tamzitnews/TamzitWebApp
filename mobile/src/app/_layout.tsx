@@ -1,11 +1,3 @@
-import {
-  Rubik_400Regular,
-  Rubik_500Medium,
-  Rubik_600SemiBold,
-  Rubik_700Bold,
-  Rubik_800ExtraBold,
-  useFonts,
-} from '@expo-google-fonts/rubik';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -15,6 +7,7 @@ import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { useAppFonts } from '@/lib/fonts';
 import { queryClient } from '@/lib/queries';
 import { isRTL } from '@/lib/i18n';
 import { applyDirection } from '@/lib/rtl';
@@ -50,7 +43,7 @@ function RootStack() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({ Rubik_400Regular, Rubik_500Medium, Rubik_600SemiBold, Rubik_700Bold, Rubik_800ExtraBold });
+  const fontsLoaded = useAppFonts();
   const hydrated = usePrefsHydrated();
   const language = usePrefs((s) => s.language);
   const [dirReady, setDirReady] = useState(false);
