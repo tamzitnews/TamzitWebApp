@@ -12,17 +12,23 @@ export type Track = {
   duration: number | null;
   /** Shown on the lock screen under the title. */
   artist: string;
+  /** Screen the player's title leads back to (the edition this audio belongs to). */
+  href?: string;
 };
 
 export const SPEEDS = [1, 1.25, 1.5, 0.75] as const;
 
 type AudioState = {
+  /** The loaded track (started at least once). */
   track: Track | null;
+  /** The current edition's audio, offered by the edition tab before it is played. */
+  offered: Track | null;
   playing: boolean;
   buffering: boolean;
   position: number;
   duration: number;
   rate: number;
+  offer: (track: Track | null) => void;
   /** Starts `track` (loading it if it is not the current one) or resumes it. */
   play: (track: Track) => Promise<void>;
   pause: () => void;
@@ -55,9 +61,8 @@ let intentAt = 0;
 function onStatus(st: AudioStatus) {
   const cur = useAudioStore.getState();
   if (st.didJustFinish) {
-    intent = false;
-    useAudioStore.setState({ playing: false, buffering: false, position: 0 });
-    player?.pause();
+    // Done: unload, so the dock leaves the other tabs (the edition tab still offers the audio).
+    useAudioStore.getState().stop();
     player?.seekTo(0).catch(() => {});
     return;
   }
@@ -88,11 +93,18 @@ function ensurePlayer() {
 
 export const useAudioStore = create<AudioState>((set, get) => ({
   track: null,
+  offered: null,
   playing: false,
   buffering: false,
   position: 0,
   duration: 0,
   rate: 1,
+
+  offer: (track) => {
+    const cur = get().offered;
+    if (cur?.id === track?.id && cur?.title === track?.title && cur?.url === track?.url) return;
+    set({ offered: track });
+  },
 
   play: async (track) => {
     await ensureMode();

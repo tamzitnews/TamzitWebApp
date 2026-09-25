@@ -25,7 +25,7 @@ const S = defineStrings({
     noMatch: 'לא מצאנו עיר בשם הזה. אפשר להשתמש בשם שהקלדתם.',
   },
   en: {
-    placeholder: 'Choose from the list or type',
+    placeholder: 'Choose or type a city',
     title: 'City',
     search: 'Search for a city',
     useText: (q: string) => `Use “${q}”`,
@@ -35,7 +35,7 @@ const S = defineStrings({
     noMatch: 'No city by that name. You can use the name you typed.',
   },
   fr: {
-    placeholder: 'Choisissez dans la liste ou saisissez',
+    placeholder: 'Choisir ou saisir une ville',
     title: 'Ville',
     search: 'Rechercher une ville',
     useText: (q: string) => `Utiliser « ${q} »`,

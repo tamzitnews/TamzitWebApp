@@ -20,6 +20,7 @@ const S = defineStrings({
     artist: 'תמצית החדשות',
     back: 'אחורה 15 שניות',
     fwd: 'קדימה 15 שניות',
+    open: (t: string) => `${t}, פתיחת המהדורה`,
   },
   en: {
     region: 'Audio edition player',
@@ -31,6 +32,7 @@ const S = defineStrings({
     artist: 'Tamzit News',
     back: 'Back 15 seconds',
     fwd: 'Forward 15 seconds',
+    open: (t: string) => `${t}, open the edition`,
   },
   fr: {
     region: "Lecteur de l'édition audio",
@@ -42,6 +44,7 @@ const S = defineStrings({
     artist: 'Tamzit News',
     back: 'Reculer de 15 secondes',
     fwd: 'Avancer de 15 secondes',
+    open: (t: string) => `${t}, ouvrir l'édition`,
   },
 });
 
@@ -51,11 +54,11 @@ export function mmss(sec: number) {
 }
 
 /** Builds the player track for a feed's audio. */
-export function useTrack(audio: Audio | null, title: string): Track | null {
+export function useTrack(audio: Audio | null, title: string, href?: string): Track | null {
   const s = useStrings(S);
   return useMemo(
-    () => (audio ? { id: audio.id, url: audio.audio_url, title, duration: audio.duration_sec, artist: s.artist } : null),
-    [audio, title, s.artist],
+    () => (audio ? { id: audio.id, url: audio.audio_url, title, duration: audio.duration_sec, artist: s.artist, href } : null),
+    [audio, title, s.artist, href],
   );
 }
 
@@ -64,7 +67,14 @@ export function useTrack(audio: Audio | null, title: string): Track | null {
  * start side), elapsed / total and a speed button (1× → 1.25× → 1.5× → 0.75×).
  * Shows `track` unless another track is already playing, in which case that one is shown.
  */
-export const MiniPlayer = memo(function MiniPlayer({ track }: { track: Track }) {
+export const MiniPlayer = memo(function MiniPlayer({
+  track,
+  onPressTitle,
+}: {
+  track: Track;
+  /** When set, the title is a button (for example, back to the edition of this audio). */
+  onPressTitle?: (track: Track) => void;
+}) {
   const { c } = useTheme();
   const s = useStrings(S);
   const current = useAudioStore((st) => st.track);
@@ -119,9 +129,22 @@ export const MiniPlayer = memo(function MiniPlayer({ track }: { track: Track }) 
         )}
       </Pressable>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <T variant="label" color="onHero" weight={700} numberOfLines={1} style={{ fontSize: 15, lineHeight: 20 }}>
-          {shown.title}
-        </T>
+        {onPressTitle ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={s.open(shown.title)}
+            onPress={() => onPressTitle(shown)}
+            hitSlop={{ top: 12, bottom: 4 }}
+            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+            <T variant="label" color="onHero" weight={700} numberOfLines={1} style={{ fontSize: 15, lineHeight: 20 }}>
+              {shown.title}
+            </T>
+          </Pressable>
+        ) : (
+          <T variant="label" color="onHero" weight={700} numberOfLines={1} style={{ fontSize: 15, lineHeight: 20 }}>
+            {shown.title}
+          </T>
+        )}
         <View
           accessible
           accessibilityRole="adjustable"

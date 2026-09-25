@@ -7,9 +7,11 @@ export type AuthErrorCode =
   | 'not_registered'
   | 'invalid_phone'
   | 'invalid_email'
+  | 'email_in_use'
   | 'missing_name'
   | 'rate_limited'
   | 'email_not_configured'
+  | 'email_failed'
   | 'invalid_code'
   | 'expired'
   | 'not_found'
@@ -21,9 +23,11 @@ const KNOWN = new Set<string>([
   'not_registered',
   'invalid_phone',
   'invalid_email',
+  'email_in_use',
   'missing_name',
   'rate_limited',
   'email_not_configured',
+  'email_failed',
   'invalid_code',
   'expired',
   'not_found',
@@ -42,9 +46,11 @@ export const AUTH_ERRORS = defineStrings<Record<AuthErrorCode, string>>({
     not_registered: 'המספר הזה עוד לא רשום אצלנו.',
     invalid_phone: 'מספר הטלפון לא תקין. נסו בפורמט 050-000-0000.',
     invalid_email: 'כתובת המייל לא תקינה.',
+    email_in_use: 'המייל הזה כבר רשום בחשבון אחר. נסו כתובת אחרת, או היכנסו עם המספר שאיתו נרשמתם.',
     missing_name: 'נא למלא שם מלא.',
     rate_limited: 'היו יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.',
     email_not_configured: 'שליחת קודים במייל עוד לא הוגדרה. אפשר להיכנס עם חשבון ההדגמה.',
+    email_failed: 'לא הצלחנו לשלוח את המייל. נסו שוב בעוד רגע.',
     invalid_code: 'הקוד לא נכון. בדקו אותו ונסו שוב.',
     expired: 'תוקף הקוד פג. שלחו קוד חדש.',
     not_found: 'לא מצאנו בקשת כניסה פעילה למספר הזה. שלחו קוד חדש.',
@@ -56,9 +62,11 @@ export const AUTH_ERRORS = defineStrings<Record<AuthErrorCode, string>>({
     not_registered: "This number isn't registered yet.",
     invalid_phone: 'This phone number is not valid. Try the format 050-000-0000.',
     invalid_email: 'This email address is not valid.',
+    email_in_use: 'This email is already used by another account. Try another address, or sign in with the number you registered with.',
     missing_name: 'Please enter your full name.',
     rate_limited: 'Too many attempts. Please try again in a few minutes.',
     email_not_configured: 'Sending codes by email is not set up yet. You can sign in with the demo account.',
+    email_failed: "We couldn't send the email. Please try again in a moment.",
     invalid_code: 'That code is not right. Check it and try again.',
     expired: 'The code has expired. Send a new one.',
     not_found: "We couldn't find an active sign-in request for this number. Send a new code.",
@@ -70,9 +78,11 @@ export const AUTH_ERRORS = defineStrings<Record<AuthErrorCode, string>>({
     not_registered: "Ce numéro n'est pas encore inscrit.",
     invalid_phone: "Ce numéro de téléphone n'est pas valide. Essayez le format 050-000-0000.",
     invalid_email: "Cette adresse e-mail n'est pas valide.",
+    email_in_use: "Cette adresse est déjà utilisée par un autre compte. Essayez une autre adresse, ou connectez-vous avec le numéro utilisé à l'inscription.",
     missing_name: 'Veuillez indiquer votre nom complet.',
     rate_limited: 'Trop de tentatives. Réessayez dans quelques minutes.',
     email_not_configured: "L'envoi des codes par e-mail n'est pas encore configuré. Vous pouvez vous connecter avec le compte de démonstration.",
+    email_failed: "Nous n'avons pas pu envoyer l'e-mail. Réessayez dans un instant.",
     invalid_code: "Ce code n'est pas le bon. Vérifiez-le et réessayez.",
     expired: 'Le code a expiré. Demandez-en un nouveau.',
     not_found: "Aucune demande de connexion active pour ce numéro. Demandez un nouveau code.",

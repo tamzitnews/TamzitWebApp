@@ -70,9 +70,26 @@ export type EditionFeedProps = {
   onRefresh?: () => void;
   /** Rendered above the list (for example, the offline line). */
   banner?: ReactElement | null;
+  /**
+   * 'inline': the player is docked at the bottom of this screen (screens outside the tabs).
+   * 'dock': the audio is offered to the GlobalPlayerDock above the tab bar (the edition tab).
+   */
+  player?: 'inline' | 'dock';
+  /** Where the player's title leads back to. */
+  audioHref?: string;
 };
 
-export function EditionFeed({ feed, type, name, readKey, refreshing, onRefresh, banner }: EditionFeedProps) {
+export function EditionFeed({
+  feed,
+  type,
+  name,
+  readKey,
+  refreshing,
+  onRefresh,
+  banner,
+  player = 'inline',
+  audioHref,
+}: EditionFeedProps) {
   const { c } = useTheme();
   const lang = useLang();
   const qc = useQueryClient();
@@ -94,8 +111,12 @@ export function EditionFeed({ feed, type, name, readKey, refreshing, onRefresh, 
 
   const s = useStrings(S);
   const listenTitle = `${s.listen} · ${name}`;
-  const track = useTrack(feed.audio, listenTitle);
+  const track = useTrack(feed.audio, listenTitle, audioHref);
   const play = useAudioStore((s) => s.play);
+  const offer = useAudioStore((s) => s.offer);
+  useEffect(() => {
+    if (player === 'dock') offer(track);
+  }, [player, track, offer]);
   const onListen = useMemo(() => (track ? () => void play(track).catch(() => {}) : undefined), [track, play]);
 
   const rows = useMemo(() => buildRows(feed), [feed]);
@@ -171,7 +192,7 @@ export function EditionFeed({ feed, type, name, readKey, refreshing, onRefresh, 
           ) : undefined
         }
       />
-      {track ? <PlayerDock track={track} /> : null}
+      {track && player === 'inline' ? <PlayerDock track={track} /> : null}
     </View>
   );
 }

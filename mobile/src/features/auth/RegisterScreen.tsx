@@ -153,7 +153,7 @@ export function RegisterScreen() {
     } catch (e) {
       const code = authErrorCode(e);
       if (code === 'invalid_phone') setServerField({ phone: errors.invalid_phone });
-      else if (code === 'invalid_email') setServerField({ email: errors.invalid_email });
+      else if (code === 'invalid_email' || code === 'email_in_use') setServerField({ email: errors[code] });
       else if (code === 'missing_name') setServerField({ name: errors.missing_name });
       else setFormError(code);
     } finally {

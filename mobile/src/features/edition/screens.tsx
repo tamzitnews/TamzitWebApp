@@ -52,6 +52,8 @@ export function EditionTabScreen() {
         refreshing={ed.refreshing}
         onRefresh={ed.refresh}
         banner={ed.offline ? <OfflineBanner /> : null}
+        player="dock"
+        audioHref="/"
       />
     );
   } else if (ed.error) {
@@ -86,7 +88,18 @@ export function EditionViewScreen({ id }: { id: string }) {
 
   let body;
   if (feed) {
-    body = <EditionFeed feed={feed} type={type} name={name} readKey={id} refreshing={q.isRefetching} onRefresh={() => q.refetch()} />;
+    body = (
+      <EditionFeed
+        feed={feed}
+        type={type}
+        name={name}
+        readKey={id}
+        refreshing={q.isRefetching}
+        onRefresh={() => q.refetch()}
+        player="inline"
+        audioHref={`/edition/${id}`}
+      />
+    );
   } else if (code === 'archive_locked') {
     body = <LockedEdition />;
   } else if (q.isError) {
