@@ -56,9 +56,12 @@ const TEXT: Record<
     channelSpecialDesc: string;
     ready: (edition: string) => string;
     motzashChag: string;
+    erevChag: string;
     body: string;
     bodyMotzash: string;
     bodyMotzashChag: string;
+    bodyErev: string;
+    bodyErevChag: string;
   }
 > = {
   he: {
@@ -68,9 +71,12 @@ const TEXT: Record<
     channelSpecialDesc: 'רק באירוע חריג, מחוץ ללוח הזמנים',
     ready: (e) => `${e} מוכנה`,
     motzashChag: 'מהדורת מוצאי החג',
+    erevChag: 'מהדורת ערב החג',
     body: 'כמה דקות, ואתם מעודכנים.',
     bodyMotzash: 'מה שקרה בשבת, בקצרה.',
     bodyMotzashChag: 'מה שקרה בחג, בקצרה.',
+    bodyErev: 'כל מה שחשוב לדעת לפני שבת.',
+    bodyErevChag: 'כל מה שחשוב לדעת לפני החג.',
   },
   en: {
     channelEditions: 'Editions',
@@ -79,9 +85,12 @@ const TEXT: Record<
     channelSpecialDesc: 'Only for an exceptional event, outside the schedule',
     ready: (e) => `${e} is ready`,
     motzashChag: 'After-holiday edition',
+    erevChag: 'Holiday eve edition',
     body: 'A few minutes, and you’re up to date.',
     bodyMotzash: 'What happened over Shabbat, in brief.',
     bodyMotzashChag: 'What happened over the holiday, in brief.',
+    bodyErev: 'Everything worth knowing before Shabbat.',
+    bodyErevChag: 'Everything worth knowing before the holiday.',
   },
   fr: {
     channelEditions: 'Éditions',
@@ -90,9 +99,12 @@ const TEXT: Record<
     channelSpecialDesc: 'Seulement pour un événement exceptionnel, hors du programme',
     ready: (e) => `Votre ${e.charAt(0).toLowerCase()}${e.slice(1)} est prête`,
     motzashChag: 'Édition de fin de fête',
+    erevChag: 'Édition de veille de fête',
     body: 'Quelques minutes, et vous êtes à jour.',
     bodyMotzash: 'Ce qui s’est passé pendant Chabbat, en bref.',
     bodyMotzashChag: 'Ce qui s’est passé pendant la fête, en bref.',
+    bodyErev: 'L’essentiel à savoir avant Chabbat.',
+    bodyErevChag: 'L’essentiel à savoir avant la fête.',
   },
 };
 
@@ -101,14 +113,24 @@ const TEXT: Record<
 export type PlannedEdition = {
   at: Date;
   type: EditionType;
-  /** For 'motzash' only: the rest period was Yom Tov without Shabbat. */
+  /** For 'motzash' only: the rest period was Yom Tov without Shabbat (Motzei Chag). */
   afterChag?: boolean;
+  /** For 'erev_shabbat' only: the rest period is Yom Tov without Shabbat (Erev Chag). */
+  beforeChag?: boolean;
 };
 
+/** Minutes before candle lighting when the Erev Shabbat / Erev Chag edition is ready. */
+export const EREV_LEAD_MIN = 60;
+
+const MIN = 60_000;
+
 /**
- * The reader's edition times between `from` and `to`: every slot outside Shabbat / Yom Tov, plus a
- * Motzei Shabbat edition MOTZASH_DELAY_MIN after havdalah. Slots up to an hour after that edition
- * are skipped, since it already sums up the day.
+ * The reader's edition times between `from` and `to`:
+ * - every regular slot outside Shabbat / Yom Tov;
+ * - on the day a rest period starts, the slots at or after (candle lighting − EREV_LEAD_MIN) are
+ *   replaced by one Erev Shabbat / Erev Chag edition at that time;
+ * - a Motzei Shabbat / Motzei Chag edition MOTZASH_DELAY_MIN after havdalah; regular slots up to
+ *   an hour after it are skipped, since it already sums up the day.
  */
 export function upcomingEditions(
   slotTimes: string[],
@@ -119,21 +141,32 @@ export function upcomingEditions(
 ): PlannedEdition[] {
   let periods: ReturnType<typeof restPeriods> = [];
   try {
-    periods = restPeriods(city, new Date(from.getTime() - 2 * 24 * 3600_000), to);
+    periods = restPeriods(city, new Date(from.getTime() - 2 * 24 * 3600_000), new Date(to.getTime() + 24 * 3600_000));
   } catch {
     periods = [];
   }
   const out: PlannedEdition[] = [];
+  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+
+  for (const p of periods) {
+    const erevAt = new Date(p.start.getTime() - EREV_LEAD_MIN * MIN);
+    const dayStart = new Date(p.start);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 3600_000 - 1);
+    const swallowed = slotsBetween(slotTimes, dayStart, dayEnd).some((x) => x.at >= erevAt);
+    if (swallowed && erevAt > from && erevAt <= to) out.push({ at: erevAt, type: 'erev_shabbat', beforeChag: !p.includesShabbat });
+    const motzashAt = motzashEditionAt(p.end);
+    if (motzashAt > from && motzashAt <= to) out.push({ at: motzashAt, type: 'motzash', afterChag: !p.includesShabbat });
+  }
+
   for (const slot of slotsBetween(slotTimes, from, to)) {
     const t = slot.at.getTime();
-    const quiet = periods.some(
-      (p) => t >= p.start.getTime() && t < p.end.getTime() + (MOTZASH_DELAY_MIN + AFTER_MOTZASH_QUIET_MIN) * 60_000,
-    );
-    if (!quiet) out.push({ at: slot.at, type: slotEditionType(frequency, slot.index) });
-  }
-  for (const p of periods) {
-    const at = motzashEditionAt(p.end);
-    if (at > from && at <= to) out.push({ at, type: 'motzash', afterChag: !p.includesShabbat });
+    const skip = periods.some((p) => {
+      const erevAt = p.start.getTime() - EREV_LEAD_MIN * MIN;
+      if (t >= erevAt && sameDay(slot.at, p.start)) return true; // replaced by the Erev Shabbat edition
+      return t >= p.start.getTime() && t < p.end.getTime() + (MOTZASH_DELAY_MIN + AFTER_MOTZASH_QUIET_MIN) * MIN;
+    });
+    if (!skip) out.push({ at: slot.at, type: slotEditionType(frequency, slot.index) });
   }
   return out.sort((a, b) => a.at.getTime() - b.at.getTime());
 }
@@ -144,12 +177,29 @@ export function nextEditionAt(slotTimes: string[], frequency: 1 | 2 | 3, city: C
   return list[0] ?? null;
 }
 
+/** Edition name for a planned edition ("מהדורת ערב החג" for Erev Chag, …). */
+export function plannedEditionName(e: PlannedEdition, lang: Language) {
+  const t = TEXT[lang] ?? TEXT.he;
+  if (e.type === 'motzash' && e.afterChag) return t.motzashChag;
+  if (e.type === 'erev_shabbat' && e.beforeChag) return t.erevChag;
+  return EDITION_NAMES[lang][e.type];
+}
+
 function contentFor(e: PlannedEdition, lang: Language): Notifications.NotificationContentInput {
   const t = TEXT[lang] ?? TEXT.he;
-  const name = e.type === 'motzash' && e.afterChag ? t.motzashChag : EDITION_NAMES[lang][e.type];
+  const body =
+    e.type === 'motzash'
+      ? e.afterChag
+        ? t.bodyMotzashChag
+        : t.bodyMotzash
+      : e.type === 'erev_shabbat'
+        ? e.beforeChag
+          ? t.bodyErevChag
+          : t.bodyErev
+        : t.body;
   return {
-    title: t.ready(name),
-    body: e.type === 'motzash' ? (e.afterChag ? t.bodyMotzashChag : t.bodyMotzash) : t.body,
+    title: t.ready(plannedEditionName(e, lang)),
+    body,
     data: { kind: 'edition', edition_type: e.type, url: '/(tabs)' },
   };
 }
