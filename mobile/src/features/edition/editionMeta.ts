@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 
 import { useShabbatCity } from '@/features/shabbat/hooks';
 import { EDITION_NAMES, formatDay, formatTime, slotEditionType, useLang } from '@/lib/i18n';
-import { nextEditionAt } from '@/lib/notifications';
+import { nextEditionAt, plannedEditionName } from '@/lib/notifications';
 import type { EditionType, Feed, FeedItem, Language } from '@/lib/types';
 import { usePrefs } from '@/state/prefs';
 
@@ -53,7 +53,7 @@ export function useNextEdition(now: Date = new Date()): { name: string; time: st
     const at = new Date(minute * 60_000);
     const next = nextEditionAt(slotTimes, frequency, city, at);
     if (!next) return null;
-    return { name: EDITION_NAMES[lang][next.type], time: whenLabel(next.at, at, lang) };
+    return { name: plannedEditionName(next, lang), time: whenLabel(next.at, at, lang) };
   }, [minute, slotTimes, frequency, city, lang]);
 }
 
