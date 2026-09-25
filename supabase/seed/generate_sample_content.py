@@ -291,6 +291,9 @@ def main():
 
         def take(cands):
             fresh = [c for c in cands if c.tpl['topic'] not in topics] or cands
+            # daytime editions use up the daytime-only material first, leaving the rest for the evening
+            if e['type'] in ('morning', 'noon') and rng.random() < 0.75:
+                fresh = [c for c in fresh if not c.allowed_in('evening')] or fresh
             # older days: prefer Hebrew-only material, keep full templates for the recent days
             if not full:
                 pref = [c for c in fresh if c.he_only or 'en' not in c.tpl]
@@ -435,7 +438,7 @@ def calm_text(it):
 def synth(text: str, path: str) -> str:
     try:
         from gtts import gTTS  # type: ignore
-        gTTS(text, lang='iw', slow=False).save(path)
+        gTTS(text, lang='iw', slow=False, timeout=30).save(path)
         return 'gtts'
     except Exception as exc:  # noqa: BLE001
         print(f'gTTS failed ({exc}); falling back to espeak-ng', file=sys.stderr)
