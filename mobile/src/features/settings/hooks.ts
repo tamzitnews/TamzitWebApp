@@ -75,7 +75,9 @@ export function useProfileValues() {
       },
     [profile, p],
   );
-  return { values, me, signedIn: !!session, sessionLoading: loading };
+  // Signed in: wait for the server profile, so the screens start from the real values.
+  const ready = !loading && (!session || !!profile || me.isError);
+  return { values, me, signedIn: !!session, sessionLoading: loading, ready };
 }
 
 export type SaveState = 'idle' | 'saving' | 'saved' | 'error';

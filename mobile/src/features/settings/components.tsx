@@ -4,11 +4,11 @@ import type { ReactNode } from 'react';
 import { Modal, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppBar, Button, Icon, Screen, T } from '@/components/ui';
+import { AppBar, Button, Icon, Loading, Screen, T } from '@/components/ui';
 import { useStrings } from '@/lib/i18n';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space } from '@/theme/tokens';
-import type { SaveState } from './hooks';
+import { useProfileValues, type ProfileValues, type SaveState } from './hooks';
 import { SETTINGS_S } from './strings';
 
 /** A settings sub-screen: back button + title, scrolling content, optional footer. */
@@ -41,6 +41,21 @@ export function SettingsPage({
       {children}
     </Screen>
   );
+}
+
+/**
+ * Renders its children only once the reader's current values are known (server profile when
+ * signed in), so a screen's local state starts from the real values.
+ */
+export function ValuesGate({ title, children }: { title: string; children: (values: ProfileValues) => ReactNode }) {
+  const { values, ready } = useProfileValues();
+  if (!ready)
+    return (
+      <SettingsPage title={title}>
+        <Loading />
+      </SettingsPage>
+    );
+  return <>{children(values)}</>;
 }
 
 /** Footer of a preference screen: when the change takes effect, and whether it was saved. */

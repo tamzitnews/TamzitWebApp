@@ -7,23 +7,39 @@ import { Icon, T } from '@/components/ui';
 import { useTheme } from '@/theme/ThemeProvider';
 import { space } from '@/theme/tokens';
 
-const ACTION_WIDTH = 104;
+const THRESHOLD = 88;
 
-function RemoveAction({ label }: { label: string }) {
-  const { c } = useTheme();
+function Mark({ label }: { label: string }) {
   return (
-    <View
-      style={{
-        width: ACTION_WIDTH,
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: space[1],
-        backgroundColor: c.surfaceTint,
-      }}>
+    <View style={{ alignItems: 'center', gap: space[1], width: 72 }}>
       <Icon as={BookmarkX} size={24} color="ink" />
       <T variant="caption" weight={600}>
         {label}
       </T>
+    </View>
+  );
+}
+
+/**
+ * The panel under a swiped row: full width, with the mark at both edges, so whichever side the
+ * row slides away from shows it (and a full swipe carries the row off screen).
+ */
+function RemoveAction({ label }: { label: string }) {
+  const { c } = useTheme();
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: space[2],
+        backgroundColor: c.surfaceTint,
+      }}>
+      <Mark label={label} />
+      <Mark label={label} />
     </View>
   );
 }
@@ -37,9 +53,9 @@ export function SwipeToRemove({ label, onRemove, children }: { label: string; on
   const action = () => <RemoveAction label={label} />;
   return (
     <Swipeable
-      friction={1.5}
-      leftThreshold={ACTION_WIDTH * 0.8}
-      rightThreshold={ACTION_WIDTH * 0.8}
+      friction={1.2}
+      leftThreshold={THRESHOLD}
+      rightThreshold={THRESHOLD}
       overshootLeft={false}
       overshootRight={false}
       renderLeftActions={action}
