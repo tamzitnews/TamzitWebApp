@@ -220,6 +220,17 @@ node gen_rest_periods.mjs --city paris    # עיר אחת. גם: --dry (בלי �
 
 - **מתי להריץ שוב:** לפחות פעם בשנה, כי הטבלה מכסה 24 חודשים; ומיד כשמוסיפים עיר ל־`app_cities` או משנים את הקואורדינטות או את `candle_minutes` של עיר. אחרי התאריך האחרון שבטבלה, וגם בפתיחה ראשונה בלי רשת, האפליקציה מחשבת בעצמה שבת רגילה בלבד (מהשקיעה), בלי חגים.
 
+## הטבלאות שכבר קיימות בפרויקט tamzitnews_v1
+
+בפרויקט יש כבר טבלאות של מערכת ההפקה הנוכחית, והאפליקציה לא נוגעת בהן: `news_items` (ידיעות גולמיות מהמקורות), `processed_stories` (ידיעה מעובדת עם `severity` ו־`topic`), `tamzit_editions` ו־`tamzit_edition_elements` (המהדורות שנשלחות היום, עם `edition_type`, `language`, `time_slot`), `scheduled_summaries`, `news_summaries`, `user_preferences`, והדלי `news-audio`.
+
+שתי דרכים לחבר אותן לאפליקציה:
+
+1. **המנוע כותב גם לאפליקציה (מומלץ).** בסוף כל הפקה, המנוע קורא ל־`app_engine_upsert_edition` עם המהדורה, הידיעות ורמת החשיבות שלהן, ולכל ידיעה את הגרסאות לפי שפה, קהל וסגנון. כך המבנה של האפליקציה (רמות, נושאים, סגנונות, קהל נוער) מקבל את המידע המלא.
+2. **גשר מהטבלאות הקיימות.** משימה מתוזמנת שממירה שורות חדשות מ־`tamzit_editions` / `tamzit_edition_elements` / `processed_stories` לטבלאות `app_`. `processed_stories.severity` → `level` (למשל 3 ומעלה `critical`, 2 `important`, אחרת `general`), `topic` → `topic_id`, `tamzit_editions.edition_type` / `time_slot` → `edition_type`, `language` → `language`, קבצי `news-audio` → `app_audio`. החיסרון: אין בטבלאות הקיימות גרסה לכל סגנון ולקהל נוער, אז כל הגרסאות יהיו זהות עד שהמנוע יפיק אותן.
+
+כשהמנוע מתחיל לכתוב תוכן אמיתי: להסיר את משימת הדוגמה (`select cron.unschedule('app_sample_roll_weekly');`) ולמחוק את נתוני הדוגמה לפי הסעיף "נתוני הדוגמה".
+
 ## נתוני הדוגמה
 
 הפרויקט מכיל כרגע תוכן לדוגמה (ידיעות כלליות, בלי אנשים או אירועים אמיתיים), שכל ה־`external_id` שלו מתחיל ב־`sample-`. לפני העלייה לאוויר מוחקים אותו:
