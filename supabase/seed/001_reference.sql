@@ -94,5 +94,7 @@ insert into public.app_settings (key, value) values
   ('demo_code',           '"123456"'),
   ('demo_email',          '"demo@tamzit-app.test"'),
   ('demo_premium_phone',  '"+972500000001"'),
-  ('demo_premium_email',  '"demo-premium@tamzit-app.test"')
+  ('demo_premium_email',  '"demo-premium@tamzit-app.test"'),
+  ('demo_family_phone',   '"+972500000002"'),
+  ('demo_family_email',   '"demo-family@tamzit-app.test"')
 on conflict (key) do update set value = excluded.value;

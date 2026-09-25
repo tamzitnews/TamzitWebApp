@@ -104,17 +104,27 @@ export async function getSettings(db: SupabaseClient, keys: string[]): Promise<S
   return out;
 }
 
-export const DEMO_KEYS = ['demo_phone', 'demo_code', 'demo_email', 'demo_premium_phone', 'demo_premium_email'];
+export const DEMO_KEYS = [
+  'demo_phone', 'demo_code', 'demo_email',
+  'demo_premium_phone', 'demo_premium_email',
+  'demo_family_phone', 'demo_family_email',
+];
+
+export type DemoAccount = { email: string; code: string; plan: 'free' | 'premium' | 'family' };
 
 /** Demo account for this phone (store review / testing), or null. */
-export function demoAccount(s: Settings, phone: string): { email: string; code: string; premium: boolean } | null {
+export function demoAccount(s: Settings, phone: string): DemoAccount | null {
   const code = s.demo_code ? String(s.demo_code) : '';
   if (!code) return null;
-  if (s.demo_phone && normalizePhone(String(s.demo_phone)) === phone && s.demo_email) {
-    return { email: String(s.demo_email).toLowerCase(), code, premium: false };
-  }
-  if (s.demo_premium_phone && normalizePhone(String(s.demo_premium_phone)) === phone && s.demo_premium_email) {
-    return { email: String(s.demo_premium_email).toLowerCase(), code, premium: true };
+  const accounts: [string, string, DemoAccount['plan']][] = [
+    ['demo_phone', 'demo_email', 'free'],
+    ['demo_premium_phone', 'demo_premium_email', 'premium'],
+    ['demo_family_phone', 'demo_family_email', 'family'],
+  ];
+  for (const [phoneKey, emailKey, plan] of accounts) {
+    if (s[phoneKey] && s[emailKey] && normalizePhone(String(s[phoneKey])) === phone) {
+      return { email: String(s[emailKey]).toLowerCase(), code, plan };
+    }
   }
   return null;
 }

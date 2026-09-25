@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
         }
         : {
           id: session.user_id,
-          full_name: demo?.premium ? 'הדגמה פרימיום' : 'משתמש הדגמה',
+          full_name: demo?.plan === 'premium' ? 'הדגמה פרימיום' : demo?.plan === 'family' ? 'הדגמה משפחתי' : 'משתמש הדגמה',
           phone,
           email,
           onboarded: true,

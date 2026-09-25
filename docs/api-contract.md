@@ -30,7 +30,7 @@ through RLS and RPCs with the user's JWT.
 - `app_edition_items(edition_id → app_editions on delete cascade, item_id → app_items on delete cascade, position int; pk(edition_id, item_id))`
 - `app_audio(id uuid pk, external_id text unique, kind, edition_id → app_editions null, language, audience, title text, audio_url text, duration_sec int, published_at, status ('draft'|'published'), created_at)`
 - `app_ads(id uuid pk, external_id text unique, sponsor text, body text, link_url text null, language, audience, edition_id → app_editions null, starts_at, ends_at null, weight int default 1, active bool, created_at)`
-- `app_settings(key text pk, value jsonb)` — keys: `free_archive_days` (7), `max_items` (10), `donation_url`, `support_email`, `demo_phone`, `demo_code`, `demo_email`, `demo_premium_phone`, `demo_premium_email`; server-only: `functions_base_url`, `push_webhook_secret`.
+- `app_settings(key text pk, value jsonb)` — keys: `free_archive_days` (7), `max_items` (10), `donation_url`, `support_email`, `demo_phone`, `demo_code`, `demo_email`, `demo_premium_phone`, `demo_premium_email`, `demo_family_phone`, `demo_family_email`; server-only: `functions_base_url`, `push_webhook_secret`.
 
 ## User tables (written by the app / edge functions)
 
@@ -107,7 +107,15 @@ type Feed = {
   Creates the `app_profiles` row on first verify (from `app_pending_registrations`). The app then calls `supabase.auth.setSession({ access_token, refresh_token })`.
   Status codes: `invalid_code` 400, `not_found` 404 (no code was requested, or it was already used), `expired` 410 (code older than 10 minutes, 5 wrong guesses, or registration older than 30 minutes: ask for a new code), `rate_limited` 429; also `invalid_phone` 400, `server_error` 500. The session is a normal Supabase Auth session (refreshes with `supabase.auth`).
 - Rate limits: 5 starts and 10 verifies per phone per 15 minutes. Demo phones are exempt.
-- Demo accounts: phone `app_settings.demo_phone` (`+972500000000`, free plan) and `app_settings.demo_premium_phone` (`+972500000001`, premium) with code `app_settings.demo_code` (`123456`) sign in to `demo_email` / `demo_premium_email` without sending email (for testing and store review).
+- Demo accounts (code `app_settings.demo_code` = `123456`, no email is sent; for testing and store review):
+
+  | phone | settings keys | email | plan |
+  | --- | --- | --- | --- |
+  | `+972500000000` | `demo_phone`, `demo_email` | `demo@tamzit-app.test` | free |
+  | `+972500000001` | `demo_premium_phone`, `demo_premium_email` | `demo-premium@tamzit-app.test` | premium (manual subscription); has 2 in-app messages, 1 unread |
+  | `+972500000002` | `demo_family_phone`, `demo_family_email` | `demo-family@tamzit-app.test` | family owner (manual subscription); one invited member `+972500000003` |
+
+  The demo accounts are shared by everyone testing: expect other testers to change their preferences.
 - `POST /functions/v1/app-push-special` — called by a database webhook when a `special` edition is published; sends FCM pushes to devices whose profile has `special_push = true` and matching language/audience. Inactive until the `FCM_SERVICE_ACCOUNT` secret exists.
   Details: the trigger `app_editions_push_special` fires once, when a special edition becomes `published` (insert as published, or draft → published); the function checks the `x-app-secret` header, pushes once per edition (`pushed_at`), skips readers whose `shabbat_city_id` is currently in Shabbat or Yom Tov, and uses the headline of the edition's first item only when `headline_in_push` is on. Tokens that look like Expo tokens (`ExponentPushToken[…]`) go through the Expo push service (works without `FCM_SERVICE_ACCOUNT`); native FCM tokens go through FCM HTTP v1. Push data: `{ type: 'special', edition_id, url: 'tamzit://edition/<id>' }`.
 
