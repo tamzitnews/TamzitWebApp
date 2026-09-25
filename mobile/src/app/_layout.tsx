@@ -11,10 +11,12 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
+import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { queryClient } from '@/lib/queries';
+import { isRTL } from '@/lib/i18n';
 import { applyDirection } from '@/lib/rtl';
 import { usePrefs } from '@/state/prefs';
 import { ThemeProvider, useTheme } from '@/theme/ThemeProvider';
@@ -71,7 +73,15 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
-            <RootStack />
+            {Platform.OS === 'web' ? (
+              // react-native-web takes the direction of logical styles (marginStart…) from a `dir` prop,
+              // not from document.dir. Native uses I18nManager (applyDirection).
+              <View style={{ flex: 1 }} {...({ dir: isRTL(language) ? 'rtl' : 'ltr' } as object)}>
+                <RootStack />
+              </View>
+            ) : (
+              <RootStack />
+            )}
           </ThemeProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
