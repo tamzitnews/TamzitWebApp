@@ -85,6 +85,20 @@ NEW=$(jget "d.get('access_token','')"); NEW_ID=$(jget "d.get('user_id','')")
 s=$(rpc "$NEW" app_me); check "new user app_me: profile from registration" "s==200 and d['profile']['full_name']=='בדיקת עשן' and d['profile']['phone']=='$REG_PHONE' and d['profile']['shabbat_city_id']=='haifa' and d['plan']=='free'" "$TMP/out" "$s"
 s=$(fn app-auth-verify "{\"phone\":\"$REG_PHONE\",\"code\":\"$CODE\"}");   check "verify: code is single use" "s==404 and d['error']=='not_found'" "$TMP/out" "$s"
 s=$(fn app-auth-start "{\"mode\":\"register\",\"phone\":\"$REG_PHONE\",\"full_name\":\"x y\",\"email\":\"$REG_EMAIL\"}"); check "start: already_registered" "s==409 and d['error']=='already_registered'" "$TMP/out" "$s"
+s=$(fn app-auth-start "{\"mode\":\"register\",\"phone\":\"+15555550125\",\"full_name\":\"x y\",\"email\":\"$REG_EMAIL\"}"); check "start: email_in_use" "s==409 and d['error']=='email_in_use'" "$TMP/out" "$s"
+
+# A second throwaway user whose phone holds a premium subscription before registering (the WhatsApp case).
+P2_PHONE="+15555550124"; P2_EMAIL="smoke-test-premium@tamzit-app.test"
+curl -sS -o /dev/null -X POST "$SUPABASE_URL/rest/v1/app_subscriptions" -H "apikey: $SRV" -H "Authorization: Bearer $SRV" \
+  -H 'Content-Type: application/json' -d "{\"phone\":\"$P2_PHONE\",\"plan\":\"premium\",\"source\":\"whatsapp\",\"external_ref\":\"smoke-test-premium\"}"
+fn app-auth-start "{\"mode\":\"register\",\"phone\":\"$P2_PHONE\",\"full_name\":\"בדיקת עשן פרימיום\",\"email\":\"$P2_EMAIL\"}" >/dev/null
+HASH=$(python3 -c "import hashlib; print(hashlib.sha256('app-login:$P2_PHONE:$CODE'.encode()).hexdigest())")
+curl -sS -o /dev/null -X POST "$SUPABASE_URL/rest/v1/app_login_codes" -H "apikey: $SRV" -H "Authorization: Bearer $SRV" \
+  -H 'Content-Type: application/json' -H 'Prefer: resolution=merge-duplicates' \
+  -d "{\"phone\":\"$P2_PHONE\",\"email\":\"$P2_EMAIL\",\"mode\":\"register\",\"code_hash\":\"$HASH\",\"attempts\":0,\"expires_at\":\"$(date -u -d '+10 min' +%FT%TZ)\"}"
+s=$(fn app-auth-verify "{\"phone\":\"$P2_PHONE\",\"code\":\"$CODE\"}"); check "verify: second user (pre-existing WhatsApp premium)" "s==200 and d['is_new'] is True" "$TMP/out" "$s"
+SPREM=$(jget "d.get('access_token','')"); SPREM_ID=$(jget "d.get('user_id','')")
+s=$(rpc "$SPREM" app_me); check "WhatsApp subscriber is premium on registration" "s==200 and d['is_premium'] is True and d['plan']=='premium'" "$TMP/out" "$s"
 
 echo "== anon access (before registration)"
 s=$(get "$ANON" "app_topics?select=id,is_default");   check "anon reads app_topics (14, 7 default)" "s==200 and len(d)==14 and sum(t['is_default'] for t in d)==7" "$TMP/out" "$s"
@@ -94,12 +108,20 @@ s=$(get "$ANON" "app_settings?select=key");            check "anon reads only pu
 s=$(get "$ANON" "app_editions?select=id&limit=1");     check "anon cannot read app_editions" "s in (401,403) or d==[]" "$TMP/out" "$s"
 s=$(rpc "$ANON" app_me);                               check "anon cannot call app_me" "s in (401,403,404)" "$TMP/out" "$s"
 
-# The demo accounts are shared with app testers: put both back to a known baseline first.
+echo "== demo accounts (shared with testers, so only plan-level checks)"
+s=$(rpc "$FREE" app_me); check "app_me free demo" "s==200 and d['is_premium'] is False and d['plan']=='free' and d['profile']['phone']=='+972500000000'" "$TMP/out" "$s"
+s=$(rpc "$PREM" app_me); check "app_me premium demo" "s==200 and d['is_premium'] is True and d['plan']=='premium'" "$TMP/out" "$s"
+s=$(rpc "$FREE" app_search '{"p_query":"מים"}');   check "search: premium_required (free demo)" "s>=400 and d['message']=='premium_required'" "$TMP/out" "$s"
+s=$(rpc "$PREM" app_search '{"p_query":"מים"}');   check "search: ok (premium demo)" "s==200 and isinstance(d, list)" "$TMP/out" "$s"
+FREE_DEMO="$FREE"; PREM_DEMO="$PREM"; PREM_DEMO_ID="$PREM_ID"
+
+# Feed and write checks run on the throwaway users, with a known baseline profile.
+FREE="$NEW"; FREE_ID="$NEW_ID"; PREM="$SPREM"; PREM_ID="$SPREM_ID"
 BASE='{"p_patch":{"language":"he","audience":"general","frequency":3,"slot_times":["07:30","13:00","20:00"],"level_filter":"important","topics":["security","economy","health","education","weather","transport","world"],"communities":["jerusalem"],"onboarded":true,"style":"STYLE"}}'
 rpc "$FREE" app_update_profile "${BASE/STYLE/calm}" >/dev/null
 rpc "$PREM" app_update_profile "${BASE/STYLE/informative}" >/dev/null
 
-echo "== RPCs: free demo"
+echo "== RPCs: free user"
 s=$(rpc "$FREE" app_me); check "app_me free" "s==200 and d['is_premium'] is False and d['plan']=='free' and d['profile']['id']=='$FREE_ID' and isinstance(d['unread_messages'], int)" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_personal_edition '{}')
 check "personal edition (last 24h): shape" "s==200 and set(d)>={'window','edition_types','title','items','special','community','good_news','ad','audio','minutes','is_premium'}" "$TMP/out" "$s"
@@ -117,9 +139,11 @@ SPECIAL=$(jget "[e['id'] for e in d if e['edition_type']=='special'][0]")
 s=$(rpc "$FREE" app_edition_view "{\"p_edition_id\":\"$RECENT\"}"); check "edition view (recent)" "s==200 and len(d['items'])>=5 and d['good_news'] and d['ad'] is not None" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_edition_view "{\"p_edition_id\":\"$SPECIAL\"}"); check "edition view (special)" "s==200 and d['edition_types']==['special'] and len(d['special'])==1 and d['items']==[]" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_edition_view "{\"p_edition_id\":\"$OLD\"}");    check "edition view (8+ days old): archive_locked (free)" "s>=400 and d['message']=='archive_locked'" "$TMP/out" "$s"
+s=$(rpc "$FREE_DEMO" app_edition_view "{\"p_edition_id\":\"$OLD\"}"); check "edition view (8+ days old): archive_locked (free demo)" "s>=400 and d['message']=='archive_locked'" "$TMP/out" "$s"
+s=$(rpc "$PREM_DEMO" app_edition_view "{\"p_edition_id\":\"$OLD\"}"); check "edition view (8+ days old): ok (premium demo)" "s==200 and len(d['items'])>=5" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_search '{"p_query":"מים"}');                     check "search: premium_required (free)" "s>=400 and d['message']=='premium_required'" "$TMP/out" "$s"
 
-echo "== RPCs: premium demo"
+echo "== RPCs: premium user"
 s=$(rpc "$PREM" app_me); check "app_me premium" "s==200 and d['is_premium'] is True and d['plan']=='premium'" "$TMP/out" "$s"
 s=$(rpc "$PREM" app_personal_edition '{}');                          check "personal edition premium: no ad, informative" "s==200 and d['ad'] is None and d['is_premium'] is True and all(i['style']=='informative' for i in d['items'])" "$TMP/out" "$s"
 s=$(rpc "$PREM" app_edition_view "{\"p_edition_id\":\"$OLD\"}");    check "edition view (8+ days old): premium ok" "s==200 and len(d['items'])>=5" "$TMP/out" "$s"
@@ -127,7 +151,7 @@ s=$(rpc "$PREM" app_personal_edition "{\"p_from\":\"$OLD_FROM\",\"p_to\":\"$NOW\
 s=$(rpc "$PREM" app_search '{"p_query":"מים","p_limit":5}');         check "search: premium ok" "s==200 and 0<len(d)<=5 and all('מים' in (i['headline']+i['body']) for i in d)" "$TMP/out" "$s"
 s=$(rpc "$PREM" app_archive '{}');                                    check "archive premium: nothing locked" "s==200 and not any(e['locked'] for e in d)" "$TMP/out" "$s"
 
-echo "== saved, read, feedback, profile, device, donation (free demo)"
+echo "== saved, read, feedback, profile, device, donation (free user)"
 s=$(rpc "$FREE" app_toggle_save "{\"p_item_id\":\"$ITEM\"}"); check "toggle save -> true" "s==200 and d is True" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_saved);                                    check "saved lists the item (saved=true)" "s==200 and len(d)>=1 and d[0]['id']=='$ITEM' and d[0]['saved'] is True" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_personal_edition '{}');                    check "feed shows saved flag" "any(i['id']=='$ITEM' and i['saved'] for i in d['items'])" "$TMP/out" "$s"
@@ -139,7 +163,7 @@ s=$(rpc "$FREE" app_submit_feedback "{\"p_item_id\":\"$ITEM\",\"p_kind\":\"helpf
 s=$(rpc "$FREE" app_submit_feedback "{\"p_item_id\":\"$ITEM\",\"p_kind\":\"question\",\"p_message\":\"בדיקת עשן: שאלה לעורכים\"}"); check "feedback question with message" "s==200 and len(d)==36" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_submit_feedback "{\"p_item_id\":\"$ITEM\",\"p_kind\":\"spam\"}"); check "feedback invalid kind" "s>=400 and d['message']=='invalid_kind'" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_update_profile '{"p_patch":{"style":"light","frequency":1,"phone":"+972599999999","email":"x@y.z","text_scale":1.2}}')
-check "update_profile: whitelist + derived slot_times" "s==200 and d['style']=='light' and d['frequency']==1 and d['slot_times']==['20:00'] and d['phone']=='+972500000000' and d['email']=='demo@tamzit-app.test' and abs(d['text_scale']-1.2)<1e-6" "$TMP/out" "$s"
+check "update_profile: whitelist + derived slot_times" "s==200 and d['style']=='light' and d['frequency']==1 and d['slot_times']==['20:00'] and d['phone']=='$REG_PHONE' and d['email']=='$REG_EMAIL' and abs(d['text_scale']-1.2)<1e-6" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_personal_edition '{}');                    check "feed follows the new style (light)" "s==200 and all(i['style']=='light' for i in d['items'])" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_update_profile '{"p_patch":{"level_filter":"everything"}}'); check "update_profile: invalid value" "s>=400 and d['message']=='invalid_value'" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_update_profile '{"p_patch":{"style":"calm","frequency":3,"text_scale":1}}'); check "update_profile: restore" "s==200 and d['style']=='calm' and d['slot_times']==['07:30','13:00','20:00']" "$TMP/out" "$s"
@@ -155,9 +179,9 @@ s=$(get "$FREE" "app_subscriptions?select=id&limit=5");  check "no direct select
 s=$(get "$FREE" "app_pending_registrations?select=phone"); check "no direct select on app_pending_registrations" "s in (401,403) or d==[]" "$TMP/out" "$s"
 s=$(get "$FREE" "app_login_attempts?select=id&limit=1"); check "no direct select on app_login_attempts" "s in (401,403) or d==[]" "$TMP/out" "$s"
 s=$(get "$FREE" "app_profiles?select=id");               check "profiles: only own row" "s==200 and [r['id'] for r in d]==['$FREE_ID']" "$TMP/out" "$s"
-s=$(get "$FREE" "app_profiles?select=id&id=eq.$PREM_ID"); check "profiles: other user's row invisible" "s==200 and d==[]" "$TMP/out" "$s"
+s=$(get "$FREE" "app_profiles?select=id&id=eq.$PREM_DEMO_ID"); check "profiles: other user's row invisible" "s==200 and d==[]" "$TMP/out" "$s"
 s=$(call PATCH "$SUPABASE_URL/rest/v1/app_profiles?id=eq.$FREE_ID" "$FREE" '{"phone":"+972599999999"}'); check "profiles: phone immutable" "s>=400 and 'immutable_field' in str(d)" "$TMP/out" "$s"
-s=$(call PATCH "$SUPABASE_URL/rest/v1/app_profiles?id=eq.$PREM_ID" "$FREE" '{"full_name":"hacked"}'); check "profiles: cannot update another user" "s in (200,204) and (d in (None, [], ''))" "$TMP/out" "$s"
+s=$(call PATCH "$SUPABASE_URL/rest/v1/app_profiles?id=eq.$PREM_DEMO_ID" "$FREE" '{"full_name":"hacked"}'); check "profiles: cannot update another user" "s in (200,204) and (d in (None, [], ''))" "$TMP/out" "$s"
 s=$(call PATCH "$SUPABASE_URL/rest/v1/app_profiles?id=eq.$FREE_ID" "$FREE" '{"theme":"dark"}'); check "profiles: direct update of own prefs" "s in (200,204)" "$TMP/out" "$s"
 call PATCH "$SUPABASE_URL/rest/v1/app_profiles?id=eq.$FREE_ID" "$FREE" '{"theme":"system"}' >/dev/null
 s=$(get "$FREE" "app_editions?select=id,edition_type&limit=3"); check "editions readable when signed in" "s==200 and len(d)==3" "$TMP/out" "$s"
@@ -187,13 +211,12 @@ curl -sS -o /dev/null -X DELETE "$SUPABASE_URL/rest/v1/app_devices?push_token=eq
 curl -sS -o /dev/null -X DELETE "$SUPABASE_URL/rest/v1/app_login_attempts?phone=in.(%2B15555550199,%2B15555550111,%2B15555550123)" -H "apikey: $SRV" -H "Authorization: Bearer $SRV"
 curl -sS -o /dev/null -X DELETE "$SUPABASE_URL/rest/v1/app_pending_registrations?phone=in.(%2B15555550123,%2B15555550111)" -H "apikey: $SRV" -H "Authorization: Bearer $SRV"
 curl -sS -o /dev/null -X DELETE "$SUPABASE_URL/rest/v1/app_login_codes?phone=eq.%2B15555550123" -H "apikey: $SRV" -H "Authorization: Bearer $SRV"
-if [[ -n "${FREE_ID:-}" ]]; then
-  curl -sS -o /dev/null -X DELETE "$SUPABASE_URL/rest/v1/app_feedback?profile_id=eq.$FREE_ID&created_at=gt.$(date -u -d '-15 min' +%FT%TZ)" -H "apikey: $SRV" -H "Authorization: Bearer $SRV"
-  curl -sS -o /dev/null -X DELETE "$SUPABASE_URL/rest/v1/app_donations?profile_id=eq.$FREE_ID&created_at=gt.$(date -u -d '-15 min' +%FT%TZ)" -H "apikey: $SRV" -H "Authorization: Bearer $SRV"
-fi
-if [[ -n "${NEW_ID:-}" ]]; then
-  curl -sS -o /dev/null -X DELETE "$SUPABASE_URL/auth/v1/admin/users/$NEW_ID" -H "apikey: $SRV" -H "Authorization: Bearer $SRV" && echo "  removed smoke-test user"
-fi
+curl -sS -o /dev/null -X DELETE "$SUPABASE_URL/rest/v1/app_subscriptions?external_ref=eq.smoke-test-premium" -H "apikey: $SRV" -H "Authorization: Bearer $SRV"
+curl -sS -o /dev/null -X DELETE "$SUPABASE_URL/rest/v1/app_login_attempts?phone=in.(%2B15555550124,%2B15555550125)" -H "apikey: $SRV" -H "Authorization: Bearer $SRV"
+curl -sS -o /dev/null -X DELETE "$SUPABASE_URL/rest/v1/app_pending_registrations?phone=in.(%2B15555550124,%2B15555550125)" -H "apikey: $SRV" -H "Authorization: Bearer $SRV"
+for id in "${NEW_ID:-}" "${SPREM_ID:-}"; do   # deleting the auth user cascades to the profile and its rows
+  [[ -n "$id" ]] && curl -sS -o /dev/null -X DELETE "$SUPABASE_URL/auth/v1/admin/users/$id" -H "apikey: $SRV" -H "Authorization: Bearer $SRV" && echo "  removed smoke user $id"
+done
 
 echo
 echo "passed: $PASS  failed: $FAIL"
