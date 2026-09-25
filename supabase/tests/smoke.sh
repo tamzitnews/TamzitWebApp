@@ -94,6 +94,11 @@ s=$(get "$ANON" "app_settings?select=key");            check "anon reads only pu
 s=$(get "$ANON" "app_editions?select=id&limit=1");     check "anon cannot read app_editions" "s in (401,403) or d==[]" "$TMP/out" "$s"
 s=$(rpc "$ANON" app_me);                               check "anon cannot call app_me" "s in (401,403,404)" "$TMP/out" "$s"
 
+# The demo accounts are shared with app testers: put both back to a known baseline first.
+BASE='{"p_patch":{"language":"he","audience":"general","frequency":3,"slot_times":["07:30","13:00","20:00"],"level_filter":"important","topics":["security","economy","health","education","weather","transport","world"],"communities":["jerusalem"],"onboarded":true,"style":"STYLE"}}'
+rpc "$FREE" app_update_profile "${BASE/STYLE/calm}" >/dev/null
+rpc "$PREM" app_update_profile "${BASE/STYLE/informative}" >/dev/null
+
 echo "== RPCs: free demo"
 s=$(rpc "$FREE" app_me); check "app_me free" "s==200 and d['is_premium'] is False and d['plan']=='free' and d['profile']['id']=='$FREE_ID' and isinstance(d['unread_messages'], int)" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_personal_edition '{}')
