@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { LogOut, Trash2 } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Linking, View } from 'react-native';
 
 import { Button, ErrorState, ListGroup, ListRow, Loading, T, TextField } from '@/components/ui';
@@ -11,6 +11,7 @@ import { defineStrings, localName, useLang, useStrings } from '@/lib/i18n';
 import { cancelEditionNotifications } from '@/lib/notifications';
 import { useAppSettings, useCities } from '@/lib/queries';
 import type { Profile } from '@/lib/types';
+import { useTheme } from '@/theme/ThemeProvider';
 import { space } from '@/theme/tokens';
 import { ConfirmSheet, SettingsPage } from './components';
 import { formatPhone, useProfileValues, useSaveProfile } from './hooks';
@@ -125,6 +126,24 @@ export function mailto(to: string, subject: string, body?: string) {
   return Linking.openURL(`mailto:${to}?${q}`).catch(() => {});
 }
 
+/** A read-only field: label above, value (left-to-right) below. */
+function ReadOnlyRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
+  const { c } = useTheme();
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+      style={{ minHeight: 60, paddingVertical: space[2], justifyContent: 'center', borderBottomWidth: last ? 0 : 1, borderBottomColor: c.line }}>
+      <T variant="caption" color="inkMuted" weight={600}>
+        {label}
+      </T>
+      <T variant="label" style={{ writingDirection: 'ltr', alignSelf: 'flex-start' }}>
+        {value}
+      </T>
+    </View>
+  );
+}
+
 function AccountForm({ profile }: { profile: Profile }) {
   const s = useStrings(S);
   const lang = useLang();
@@ -135,11 +154,14 @@ function AccountForm({ profile }: { profile: Profile }) {
 
   const [name, setName] = useState(profile.full_name ?? '');
   const [year, setYear] = useState(profile.birth_year ? String(profile.birth_year) : '');
-  const [city, setCity] = useState<CityValue | null>(() => {
+  // undefined = not edited: shows the saved city (a free-text name, or a city id from older data).
+  const [cityEdit, setCityEdit] = useState<CityValue | null | undefined>(undefined);
+  const savedCity: CityValue | null = useMemo(() => {
     if (!profile.city) return null;
     const match = cities.data?.find((x) => [x.name_he, x.name_en, x.name_fr, x.id].includes(profile.city!));
     return { name: match ? localName(match, lang) : profile.city, id: match?.id ?? null };
-  });
+  }, [profile.city, cities.data, lang]);
+  const city = cityEdit === undefined ? savedCity : cityEdit;
   const [submitted, setSubmitted] = useState(false);
   const [confirm, setConfirm] = useState<'signout' | 'delete' | null>(null);
   const [signingOut, setSigningOut] = useState(false);
@@ -150,12 +172,17 @@ function AccountForm({ profile }: { profile: Profile }) {
   const dirty =
     name.trim() !== (profile.full_name ?? '').trim() ||
     (year ? +year : null) !== (profile.birth_year ?? null) ||
-    (city?.name ?? null) !== (profile.city ?? null);
+    (cityEdit !== undefined && (cityEdit?.name ?? null) !== (profile.city ?? null));
 
   const submit = async () => {
     setSubmitted(true);
     if (errName || errYear) return;
-    await save({ full_name: name.trim(), birth_year: year ? +year : null, city: city?.name ?? null });
+    const ok = await save({
+      full_name: name.trim(),
+      birth_year: year ? +year : null,
+      ...(cityEdit !== undefined ? { city: cityEdit?.name ?? null } : {}),
+    });
+    if (ok) setCityEdit(undefined);
   };
 
   const signOut = async () => {
@@ -172,13 +199,18 @@ function AccountForm({ profile }: { profile: Profile }) {
   return (
     <View style={{ gap: space[5] }}>
       <TextField label={s.name} value={name} onChangeText={setName} autoComplete="name" textContentType="name" error={submitted ? errName : undefined} />
-      <View style={{ gap: space[1] }}>
-        <TextField label={s.email} value={profile.email} editable={false} ltr selectTextOnFocus={false} hint={s.emailHint} />
-        <Button variant="quiet" style={{ alignSelf: 'flex-start', marginStart: -space[3] }} onPress={() => mailto(support, s.emailSubject)}>
+      <View style={{ gap: space[2] }}>
+        <ListGroup>
+          <ReadOnlyRow label={s.email} value={profile.email} />
+          <ReadOnlyRow label={s.phone} value={phone} last />
+        </ListGroup>
+        <T variant="caption" color="inkMuted" style={{ marginHorizontal: space[1] }}>
+          {`${s.phoneHint} ${s.emailHint}`}
+        </T>
+        <Button variant="quiet" style={{ alignSelf: 'flex-start' }} onPress={() => mailto(support, s.emailSubject)}>
           {s.contact}
         </Button>
       </View>
-      <TextField label={s.phone} value={phone} editable={false} ltr hint={s.phoneHint} />
       <TextField
         label={s.birthYear}
         optional={s.optional}
@@ -189,7 +221,7 @@ function AccountForm({ profile }: { profile: Profile }) {
         ltr
         error={submitted ? errYear : undefined}
       />
-      <CityField label={s.city} optional={s.optional} value={city} onChange={setCity} />
+      <CityField label={s.city} optional={s.optional} value={city} onChange={setCityEdit} />
       <View style={{ gap: space[2] }}>
         <Button block size="lg" onPress={submit} disabled={!dirty} loading={state === 'saving'}>
           {state === 'saved' && !dirty ? s.saved : s.save}

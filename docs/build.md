@@ -19,7 +19,7 @@ scripts/build-android.sh --no-bump --no-clean   # בנייה חוזרת מהיר
 
 הסקריפט מריץ `expo prebuild --clean` (התיקייה `android/` נוצרת מחדש ואינה ב־git), מחיל את הגדרות Gradle
 ואת חתימת ה־release, בונה `assembleRelease` ובודק את התוצאה: חתימה, שם החבילה, versionCode, ארכיטקטורות
-`arm64-v8a` ו־`x86_64`, וש־bundle ה־JS מוטמע (Hermes). בנייה ראשונה במכונה נקייה לוקחת כחצי שעה; בנייה חוזרת כמה דקות.
+`arm64-v8a` ו־`x86_64`, וש־bundle ה־JS מוטמע (Hermes bytecode). בנייה ראשונה במכונה נקייה (כולל הורדות Gradle) לוקחת כרבע שעה; בנייה חוזרת כעשר דקות.
 
 - ה־APK נוצר ב־`mobile/dist/tamzit-<version>-<versionCode>.apk` (התיקייה `dist/` אינה ב־git).
 - לוג הבנייה: `mobile/dist/build-android.log`.
@@ -37,12 +37,16 @@ scripts/upload-apk.sh               # מעלה את ה־APK האחרון מ־dis
 - גרסה קבועה: `$SUPABASE_URL/storage/v1/object/public/app-builds/android/tamzit-<version>-<versionCode>.apk`
 - תמיד האחרונה: `$SUPABASE_URL/storage/v1/object/public/app-builds/android/tamzit-latest.apk`
 
-מגבלת הקובץ בפרויקט Supabase היא 50MB. אם ה־APK גדל מעבר לזה, ההעלאה תיכשל.
+מגבלת הקובץ בפרויקט Supabase היא 50MB, וה־APK שוקל כ־45MB (הספריות הנייטיב דחוסות, `useLegacyPackaging`).
+אם הוא יעבור את המגבלה ההעלאה תיכשל. הפתרון הבא בתור: להפעיל R8 ב־`expo-build-properties`
+(`enableMinifyInReleaseBuilds` + `enableShrinkResourcesInReleaseBuilds`), ולבדוק את האפליקציה במכשיר לפני שמפיצים, כי R8 עלול לשבור ספריות שנשענות על reflection.
 
 ## מפתח החתימה
 
 - המפתח נשמר מחוץ ל־git ב־`~/.tamzit-signing/` (`tamzit-release.jks`, alias `tamzit`, והסיסמה ב־`keystore.properties`).
 - גיבוי בדלי הפרטי `app-private`, בנתיב `android/signing/`. בסשן חדש הסקריפט מוריד אותו משם אוטומטית.
+- טביעת האצבע (SHA-256) של תעודת החתימה, למשל ל־`assetlinks.json`:
+  `C5:FD:A8:DC:80:E4:CF:09:F9:5F:5D:C6:AE:D8:14:3A:95:BB:FE:52:31:65:9F:D4:10:2C:2F:89:7C:45:0C:BC`
 - **אסור לאבד אותו ואסור ליצור חדש.** אנדרואיד מסרב לעדכן אפליקציה שנחתמה במפתח אחר: המשתמשים יצטרכו למחוק ולהתקין מחדש.
 
 ## הרצה בדפדפן (Appetize.io)

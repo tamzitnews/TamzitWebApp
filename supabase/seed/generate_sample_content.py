@@ -160,6 +160,15 @@ class Instance:
         only = self.tpl.get('only')
         return only is None  # 'only' items are placed explicitly
 
+    def allowed_in(self, edition_type):
+        """Keeps time-of-day wording consistent ("הבוקר", "היום", "עד 18:00") with the edition slot."""
+        text = ' '.join(render(h + ' ' + b, self.params, 0) for h, b in self.tpl['he'].values())
+        if 'הבוקר' in text:
+            return edition_type == 'morning'
+        if self.key in ('water_outage', 'bus_disruption') or 'היום' in text or 'הערב' in text:
+            return edition_type in ('morning', 'noon', 'erev_shabbat')
+        return True
+
 
 def instances(templates, kind='news'):
     out = []
@@ -239,6 +248,8 @@ def main():
             gn_for[(day, h)] = new_item(inst, first - dt.timedelta(minutes=rng.randint(40, 180)) if h != 'pm'
                                         else local(day, 16, 30), f'{day}-gn-{h}')
 
+    comm_used = {}  # (community, template) -> last day used
+
     def half_of(e):
         return 'am' if e['type'] in ('morning', 'noon') else 'pm'
 
@@ -256,14 +267,14 @@ def main():
                (only == 'after_yk' and day == dt.date(2026, 9, 21) and e['type'] == 'motzash'):
                 chosen.append(inst)
                 used.add(id(inst))
-        want_critical = rng.random() < (0.45 if e['type'] != 'noon' else 0.3)
+        want_critical = rng.random() < (0.3 if e['type'] != 'noon' else 0.15)
         topics = {i.tpl['topic'] for i in chosen}
         youth_needed = 2 if full and e['type'] in ('morning', 'evening', 'erev_shabbat', 'noon') else 0
 
         def candidates(need_full, level=None, youth=False):
             out = []
             for inst in news_pool:
-                if id(inst) in used or not inst.allowed_on(day):
+                if id(inst) in used or not inst.allowed_on(day) or not inst.allowed_in(e['type']):
                     continue
                 if need_full and not inst.full:
                     continue
@@ -323,8 +334,12 @@ def main():
         comm_ids = []
         for k in range(n_comm):
             cid = 'jerusalem' if (k == 0 and e['type'] == 'morning') else rng.choice(list(C.COMMUNITY_PLACES))
-            tpls = [t for t in C.COMMUNITY if not (t['key'] in SEASONAL and day < SUKKOT_FROM)]
+            tpls = [t for t in C.COMMUNITY if not (t['key'] in SEASONAL and day < SUKKOT_FROM)
+                    and comm_used.get((cid, t['key']), dt.date.min) < day - dt.timedelta(days=3)]
+            if not tpls:
+                continue
             t = rng.choice(tpls)
+            comm_used[(cid, t['key'])] = day
             place = rng.choice(C.COMMUNITY_PLACES[cid])
             inst = Instance(dict(t, topic=None, level='general', params=[]), dict(place=place), True, 'community', cid)
             it = new_item(inst, e['at'] - dt.timedelta(minutes=rng.randint(30, 200)), f'{day}-{e["type"]}-c{k + 1}')

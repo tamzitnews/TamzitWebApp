@@ -243,7 +243,8 @@ CERT_SHA256="$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK_SRC" 2>/dev/n
 "$BUILD_TOOLS/apksigner" verify "$APK_SRC" || die "apksigner verify failed"
 [ "$CERT_SHA256" = "$KS_SHA256" ] || die "APK signed with $CERT_SHA256, expected release cert $KS_SHA256"
 BADGING="$("$BUILD_TOOLS/aapt2" dump badging "$APK_SRC")"
-grep -E "^package:|^native-code|^sdkVersion|^targetSdkVersion|^application-label:" <<< "$BADGING" || true
+grep -E "^package:|^native-code|^minSdkVersion|^targetSdkVersion|^application-label:" <<< "$BADGING" || true
+echo "permissions: $(grep -oP "^uses-permission: name='android\.permission\.\K[A-Z_]+" <<< "$BADGING" | tr '\n' ' ')"
 grep -q "name='il.org.tamzit.app' versionCode='$VERSION_CODE'" <<< "$BADGING" || die "unexpected package/versionCode"
 grep -q "native-code: 'arm64-v8a' 'x86_64'" <<< "$BADGING" || die "unexpected ABIs"
 if grep -q "application-debuggable" <<< "$BADGING"; then die "APK is debuggable"; fi

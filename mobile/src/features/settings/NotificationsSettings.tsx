@@ -7,8 +7,8 @@ import { defineStrings, useStrings } from '@/lib/i18n';
 import { registerForPush } from '@/lib/notifications';
 import type { PrefsPatch } from '@/lib/types';
 import { space } from '@/theme/tokens';
-import { SaveFooter, SettingsPage } from './components';
-import { useEffectiveNote, useNotificationPermission, useProfileValues, useSaveProfile } from './hooks';
+import { SaveFooter, SettingsPage, ValuesGate } from './components';
+import { useEffectiveNote, useNotificationPermission, useProfileValues, useSaveProfile, type ProfileValues } from './hooks';
 
 const S = defineStrings({
   he: {
@@ -69,7 +69,12 @@ const S = defineStrings({
 
 export function NotificationsSettings() {
   const s = useStrings(S);
-  const { values, signedIn } = useProfileValues();
+  return <ValuesGate title={s.title}>{(v) => <NotificationsInner values={v} />}</ValuesGate>;
+}
+
+function NotificationsInner({ values }: { values: ProfileValues }) {
+  const s = useStrings(S);
+  const { signedIn } = useProfileValues();
   const { save, state } = useSaveProfile();
   const { permission, refresh } = useNotificationPermission();
   const note = useEffectiveNote(values.slot_times, values.frequency);

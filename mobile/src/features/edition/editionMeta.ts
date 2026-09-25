@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
 
+import { useShabbatCity } from '@/features/shabbat/hooks';
 import { EDITION_NAMES, formatDay, formatTime, slotEditionType, useLang } from '@/lib/i18n';
-import { useCities } from '@/lib/queries';
-import { nextSlot } from '@/lib/schedule';
-import { restStatus } from '@/lib/shabbat';
+import { nextEditionAt } from '@/lib/notifications';
 import type { EditionType, Feed, FeedItem, Language } from '@/lib/types';
 import { usePrefs } from '@/state/prefs';
 
@@ -40,30 +39,19 @@ export function editionDate(iso: string, lang: Language) {
 }
 
 /**
- * The reader's next edition: the next slot, or the motzash edition when Shabbat / Yom Tov starts
- * before that slot (the next edition then comes after havdalah).
+ * The reader's next edition for "הבאה: <name> · HH:MM": the shared schedule in lib/notifications
+ * (slots outside Shabbat / Yom Tov, the Motzei Shabbat edition after havdalah), so the end card and
+ * the notifications always agree.
  */
 export function useNextEdition(now: Date = new Date()): { name: string; time: string } | null {
   const lang = useLang();
   const slotTimes = usePrefs((s) => s.slotTimes);
   const frequency = usePrefs((s) => s.frequency);
-  const cityId = usePrefs((s) => s.shabbatCityId);
-  const cities = useCities();
+  const city = useShabbatCity();
   const minute = Math.floor(now.getTime() / 60_000);
   return useMemo(() => {
-    const at = new Date(minute * 60_000);
-    const next = nextSlot(slotTimes, at);
-    const city = cities.data?.find((c) => c.id === cityId);
-    const current = restStatus(city, at);
-    if (current.resting && current.endsAt) {
-      return { name: EDITION_NAMES[lang].motzash, time: formatTime(current.endsAt) };
-    }
-    const upcoming = restStatus(city, at).nextStart;
-    if (upcoming && next && upcoming < next.at) {
-      const during = restStatus(city, new Date(upcoming.getTime() + 60_000));
-      if (during.endsAt) return { name: EDITION_NAMES[lang].motzash, time: formatTime(during.endsAt) };
-    }
+    const next = nextEditionAt(slotTimes, frequency, city, new Date(minute * 60_000));
     if (!next) return null;
-    return { name: EDITION_NAMES[lang][slotEditionType(frequency, next.index)], time: formatTime(next.at) };
-  }, [minute, slotTimes, frequency, cityId, cities.data, lang]);
+    return { name: EDITION_NAMES[lang][next.type], time: formatTime(next.at) };
+  }, [minute, slotTimes, frequency, city, lang]);
 }

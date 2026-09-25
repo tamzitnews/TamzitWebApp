@@ -11,8 +11,8 @@ import { holidayLabel, restPeriods } from '@/lib/shabbat';
 import type { City, Language } from '@/lib/types';
 import { useTheme } from '@/theme/ThemeProvider';
 import { space } from '@/theme/tokens';
-import { SaveFooter, SettingsPage } from './components';
-import { useProfileValues, useSaveProfile } from './hooks';
+import { SaveFooter, SettingsPage, ValuesGate } from './components';
+import { useSaveProfile, type ProfileValues } from './hooks';
 
 const S = defineStrings({
   he: {
@@ -21,7 +21,7 @@ const S = defineStrings({
     israel: 'בישראל',
     abroad: 'בחו״ל',
     now: 'עכשיו',
-    upcoming: 'הקרובים',
+    shabbat: 'שבת',
     candles: 'הדלקת נרות',
     endsShabbat: 'צאת השבת',
     endsChag: 'צאת החג',
@@ -32,7 +32,7 @@ const S = defineStrings({
     israel: 'In Israel',
     abroad: 'Outside Israel',
     now: 'Now',
-    upcoming: 'Coming up',
+    shabbat: 'Shabbat',
     candles: 'Candle lighting',
     endsShabbat: 'Shabbat ends',
     endsChag: 'Holiday ends',
@@ -43,7 +43,7 @@ const S = defineStrings({
     israel: 'En Israël',
     abroad: 'Hors d’Israël',
     now: 'Maintenant',
-    upcoming: 'Prochainement',
+    shabbat: 'Chabbat',
     candles: 'Allumage des bougies',
     endsShabbat: 'Fin de Chabbat',
     endsChag: 'Fin de la fête',
@@ -128,7 +128,7 @@ function UpcomingTimes({ city }: { city: City }) {
       <Icon as={Flame} size={22} color="ink" />
       <View style={{ flex: 1, gap: 2 }}>
         <T variant="overline" color="ink">
-          {`${active ? s.now : s.upcoming}${holiday ? ` · ${holiday}` : ''} · ${localName(city, lang)}`}
+          {`${active ? `${s.now}: ` : ''}${holiday ?? s.shabbat} · ${localName(city, lang)}`}
         </T>
         <T variant="label">{`${s.candles}: ${dayTime(period.start, lang, city.tzid)}`}</T>
         <T variant="label">{`${endsLabel}: ${dayTime(period.end, lang, city.tzid)}`}</T>
@@ -139,7 +139,11 @@ function UpcomingTimes({ city }: { city: City }) {
 
 export function ShabbatCitySettings() {
   const s = useStrings(S);
-  const { values } = useProfileValues();
+  return <ValuesGate title={s.title}>{(v) => <ShabbatCityInner values={v} />}</ValuesGate>;
+}
+
+function ShabbatCityInner({ values }: { values: ProfileValues }) {
+  const s = useStrings(S);
   const { save, state } = useSaveProfile();
   const citiesQ = useCities();
   const cities = citiesQ.data?.length ? citiesQ.data : BUILTIN_CITIES;

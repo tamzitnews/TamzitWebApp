@@ -6,8 +6,8 @@ import { defineStrings, useStrings } from '@/lib/i18n';
 import type { ThemePref } from '@/lib/types';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space } from '@/theme/tokens';
-import { SaveFooter, SettingsPage } from './components';
-import { useProfileValues, useSaveProfile } from './hooks';
+import { SaveFooter, SettingsPage, ValuesGate } from './components';
+import { useSaveProfile, type ProfileValues } from './hooks';
 
 /** The three text sizes of the design system: 100%, 115%, 130%. */
 export const TEXT_SCALES = [1, 1.15, 1.3] as const;
@@ -62,9 +62,13 @@ function nearestScale(x: number) {
 }
 
 export function DisplaySettings() {
+  const s = useStrings(S);
+  return <ValuesGate title={s.title}>{(v) => <DisplayInner values={v} />}</ValuesGate>;
+}
+
+function DisplayInner({ values }: { values: ProfileValues }) {
   const { c } = useTheme();
   const s = useStrings(S);
-  const { values } = useProfileValues();
   const { save, state } = useSaveProfile();
   const [theme, setTheme] = useState<ThemePref>(values.theme);
   const [scale, setScale] = useState<number>(nearestScale(values.text_scale));
