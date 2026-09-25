@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -19,13 +19,11 @@ import { ThemeProvider, useTheme } from '@/theme/ThemeProvider';
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function usePrefsHydrated() {
-  const [done, setDone] = useState(usePrefs.persist.hasHydrated());
-  useEffect(() => {
-    const unsub = usePrefs.persist.onFinishHydration(() => setDone(true));
-    setDone(usePrefs.persist.hasHydrated());
-    return unsub;
-  }, []);
-  return done;
+  return useSyncExternalStore(
+    (onChange) => usePrefs.persist.onFinishHydration(onChange),
+    () => usePrefs.persist.hasHydrated(),
+    () => usePrefs.persist.hasHydrated(),
+  );
 }
 
 function RootStack() {

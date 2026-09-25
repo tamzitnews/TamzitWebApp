@@ -119,6 +119,10 @@ type Feed = {
 - `POST /functions/v1/app-push-special` — called by a database webhook when a `special` edition is published; sends FCM pushes to devices whose profile has `special_push = true` and matching language/audience. Inactive until the `FCM_SERVICE_ACCOUNT` secret exists.
   Details: the trigger `app_editions_push_special` fires once, when a special edition becomes `published` (insert as published, or draft → published); the function checks the `x-app-secret` header, pushes once per edition (`pushed_at`), skips readers whose `shabbat_city_id` is currently in Shabbat or Yom Tov, and uses the headline of the edition's first item only when `headline_in_push` is on. Tokens that look like Expo tokens (`ExponentPushToken[…]`) go through the Expo push service (works without `FCM_SERVICE_ACCOUNT`); native FCM tokens go through FCM HTTP v1. Push data: `{ type: 'special', edition_id, url: 'tamzit://edition/<id>' }`.
 
+## Rest periods (Shabbat / Yom Tov times)
+
+- `app_rest_periods(city_id → app_cities on delete cascade, starts_at timestamptz, ends_at timestamptz, kind ('shabbat'|'yomtov'), includes_shabbat bool, holiday_name text null; pk(city_id, starts_at))` — candle lighting → havdalah per city, consecutive days merged, Israel vs diaspora by city. Readable by anon and authenticated. Filled by `supabase/scripts/gen_rest_periods.mjs` (server-side; the app ships no calendar library): re-run at least yearly and whenever a city is added or its coordinates / candle_minutes change. The app downloads now−7d → now+90d for the reader's city and keeps it on the device; offline with no data it falls back to its own sunset calculation for plain Shabbat.
+
 ## Storage
 
 - Bucket `app-media` (public): audio files (`audio/…`), share assets.
