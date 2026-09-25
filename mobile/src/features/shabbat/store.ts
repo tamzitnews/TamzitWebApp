@@ -1,7 +1,7 @@
 // Rest periods downloaded from app_rest_periods (computed on the server), kept on the device so the
 // Shabbat screen and the notification schedule work offline. Only the reader's recent cities are kept.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -41,15 +41,12 @@ export const useRestPeriodsStore = create<RestPeriodsState>()(
   ),
 );
 
+const subscribeHydration = (cb: () => void) => useRestPeriodsStore.persist.onFinishHydration(cb);
+const isHydrated = () => useRestPeriodsStore.persist.hasHydrated();
+
 /** True once the stored periods were read from the device (render the gate only after this). */
 export function useRestPeriodsHydrated() {
-  const [done, setDone] = useState(useRestPeriodsStore.persist.hasHydrated());
-  useEffect(() => {
-    const unsub = useRestPeriodsStore.persist.onFinishHydration(() => setDone(true));
-    setDone(useRestPeriodsStore.persist.hasHydrated());
-    return unsub;
-  }, []);
-  return done;
+  return useSyncExternalStore(subscribeHydration, isHydrated, isHydrated);
 }
 
 /** Changes whenever new periods for the city arrive (use as a dependency to recompute). */
