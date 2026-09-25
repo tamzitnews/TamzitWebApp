@@ -5,6 +5,7 @@ import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, T } from '@/components/ui';
+import { GlobalPlayerDock } from '@/features/audio';
 import { defineStrings, useStrings } from '@/lib/i18n';
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -63,7 +64,12 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
 
 export default function TabsLayout() {
   return (
-    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
+    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => (
+        <>
+          <GlobalPlayerDock />
+          <TabBar {...props} />
+        </>
+      )}>
       <Tabs.Screen name="index" />
       <Tabs.Screen name="archive" />
       <Tabs.Screen name="saved" />
