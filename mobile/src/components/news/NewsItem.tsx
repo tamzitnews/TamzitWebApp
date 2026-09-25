@@ -24,6 +24,7 @@ export const NewsItem = memo(function NewsItem({
   onShare,
   onFeedback,
   showTime = true,
+  timeLabel,
   last,
 }: {
   item: FeedItem;
@@ -31,6 +32,8 @@ export const NewsItem = memo(function NewsItem({
   onShare?: (item: FeedItem) => void;
   onFeedback?: (item: FeedItem) => void;
   showTime?: boolean;
+  /** Replaces the time in the "topic · time" line (e.g. "היום", "אתמול", a date). */
+  timeLabel?: string;
   last?: boolean;
 }) {
   const { c } = useTheme();
@@ -40,7 +43,7 @@ export const NewsItem = memo(function NewsItem({
     <View style={{ paddingVertical: space[6], borderBottomWidth: last ? 0 : 1, borderBottomColor: c.line }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[3], marginBottom: space[2] }}>
         <T variant="caption" color="inkMuted" weight={600}>
-          {[topic, showTime ? formatTime(item.published_at) : null].filter(Boolean).join(' · ')}
+          {[topic, timeLabel ?? (showTime ? formatTime(item.published_at) : null)].filter(Boolean).join(' · ')}
         </T>
         <LevelMeter level={item.level} showLabel={item.level === 'critical'} />
       </View>
