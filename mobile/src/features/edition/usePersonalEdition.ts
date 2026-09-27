@@ -84,6 +84,9 @@ export function usePersonalEdition() {
     queryFn: () => api.personalEdition(new Date(fromISO), new Date(toISO)),
     networkMode: 'offlineFirst',
     placeholderData: cacheMatches ? cache!.feed : undefined,
+    // A new edition shows as soon as it is published (the server widens the newest window), so look again
+    // every few minutes while the edition is on screen.
+    refetchInterval: REFRESH_AFTER_MS,
   });
 
   // Mirror every fresh result.

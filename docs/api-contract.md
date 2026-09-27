@@ -270,6 +270,7 @@ RPC errors are raised with SQLSTATE `P0001` and a stable code in `error.message`
 ## Feed rules (as implemented)
 
 - Only editions with `created_at <= now()` count. Duplicate rows collapse as described above.
+- `app_personal_edition` with its newest window (`p_to` in the last 26 hours): when the reader's editions were already published after `p_to` (for one edition a day: a new `daily` edition), the window becomes (`p_to`, now] and `window` says so. So a new edition shows as soon as it is published, not at the reader's next slot.
 - `items`: `kind = 'news'`; the personal edition keeps the top `max_items` by level, then `published_at` desc, then position (general items drop first). They are returned grouped for reading: sections in the order they first appear (newest edition first, weather always last), subsections likewise inside their section, then level, edition (newest first) and position. An archived edition keeps its own order.
 - `good_news`: the newest good-news item of the window; if none, the newest of the reader's editions in the 48 hours before `p_to`.
 - `ad`: free readers only; the ad (`ad`, `donation_campaign` or `cta_link`, in the reader's language) of the newest edition in the feed that has one. The app shows it right after the first section.
