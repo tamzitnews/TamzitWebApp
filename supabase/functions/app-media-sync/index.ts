@@ -8,9 +8,11 @@
 // 2. Ad links → their preview image (og:image / twitter:image, like WhatsApp) copied to app-media/previews/.
 // 3. Audio copies are removed after a day, so the bucket never fills up (Hebrew and French audio is not copied at
 //    all: the app plays it straight from the engine's public news-audio bucket).
+// 4. Ads without an image yet → the image they went out with on WhatsApp, from Whapi (whapi.ts; needs WHAPI_TOKEN).
 // The queue lives in app_media / app_link_previews (public.app_media_queue). Responds with a summary.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { adminClient, corsHeaders, env, getSettings, json, settingInt, settingText } from '../_shared/app-common.ts';
+import { syncWhapiAdImages } from './whapi.ts';
 
 const BUCKET = 'app-media';
 const MAX_FILE = 60 * 1024 * 1024;
@@ -344,6 +346,12 @@ Deno.serve(async (req) => {
     for (const url of links) count(`link_${await syncLink(db, url)}`);
     const expired = await expireOldAudio(db, settingInt(settings, 'english_audio_keep_hours', 24, 1, 24));
     if (expired) summary.expired = expired;
+    try {
+      Object.assign(summary, await syncWhapiAdImages(db, env('SUPABASE_URL')!));
+    } catch (e) {
+      console.error('app-media-sync whapi', e);
+      summary.whapi_error = (summary.whapi_error ?? 0) + 1;
+    }
     return json({ ok: true, ...summary });
   } catch (e) {
     console.error('app-media-sync', e);

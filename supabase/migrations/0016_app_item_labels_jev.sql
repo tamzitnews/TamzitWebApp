@@ -10,8 +10,9 @@
 --
 -- Shadow mode first: while app_settings.jev_apply_to_feed is false (the default) nothing changes in the app; the
 -- labels can be reviewed in the view app_item_labels_review. When it is true, a parsed item's topics and level
--- come from its label (topic filter: any of its topics; level: the Score answer when its confidence reaches
--- jev_importance_min_confidence), else as before (topic by section keywords, level "important").
+-- come from its label (topic_id: Jev's most likely topic; topic filter: any of Jev's topics or the section's topic;
+-- level: the Score answer when its confidence reaches jev_importance_min_confidence), else as before (topic by section
+-- keywords, level "important").
 --
 -- Runs only when the TYPESAFE_API_KEY secret is set and app_settings.jev_enabled is true. Triggered by pg_cron every
 -- 5 minutes and right after an edition is saved. Idempotent.
@@ -178,7 +179,7 @@ values
 על מה זה משפיע: אם נוצרות תוויות חדשות בטבלה app_item_labels (עלות: בערך 0.04 דולר למיליון טוקנים, כלומר סנטים בחודש).
 איפה זה ממומש: שרת: public.app_label_kick (הפעלה כל 5 דקות וכשנשמרת מהדורה, מיגרציה 0016) ופונקציית הקצה supabase/functions/app-classify/index.ts.
 פורמט: true או false, בלי מירכאות.', 'סיווג ידיעות (Jev)', 'bool', '{}'::jsonb, 'true'::jsonb, false, false, 1000),
-  ('jev_apply_to_feed', 'false'::jsonb, 'שימוש בסיווג של Jev במהדורה', 'מה זה: false (מצב צל): התוויות נשמרות ואפשר לבדוק אותן בתצוגה app_item_labels_review, אבל האפליקציה לא משתנה. true: הנושאים של ידיעה נלקחים מ-Jev (במקום לפי כותרת המדור), והסינון לפי נושאים מראה ידיעה אם אחד הנושאים שלה נבחר. גם רמת החשיבות נלקחת מ-Jev (כללי / חשוב / קריטי), כשהביטחון בה מגיע ל-jev_importance_min_confidence. אחרת הרמה נשארת "חשוב", כמו היום.
+  ('jev_apply_to_feed', 'false'::jsonb, 'שימוש בסיווג של Jev במהדורה', 'מה זה: false (מצב צל): התוויות נשמרות ואפשר לבדוק אותן בתצוגה app_item_labels_review, אבל האפליקציה לא משתנה. true: הנושא הראשי של ידיעה נלקח מ-Jev (במקום לפי כותרת המדור), והסינון לפי נושאים מראה ידיעה אם אחד הנושאים שלה נבחר: הנושאים ש-Jev מצא, וגם הנושא של המדור שבו העורכים שמו אותה. גם רמת החשיבות נלקחת מ-Jev (כללי / חשוב / קריטי), כשהביטחון בה מגיע ל-jev_importance_min_confidence. אחרת הרמה נשארת "חשוב", כמו היום.
 על מה זה משפיע: אילו ידיעות כל קורא רואה, לפי הנושאים ורמת החשיבות שבחר. מומלץ להפעיל רק אחרי בדיקה של כמה ימים במצב צל.
 איפה זה ממומש: שרת: public.app_parsed_item_json ו-public.app_build_feed (מיגרציה 0016).
 פורמט: true או false, בלי מירכאות.', 'סיווג ידיעות (Jev)', 'bool', '{}'::jsonb, 'false'::jsonb, false, false, 1010),
@@ -246,9 +247,13 @@ AS $function$
     'corrected_at', null,
     'saved', exists (select 1 from public.app_saved_items x
                      where x.profile_id = p_uid and x.item_id = 'e' || p_edition.id || '-' || p_n))
-    -- all of the item's topics (the topic filter shows it when any of them was picked)
-    || coalesce((select jsonb_build_object('topics', to_jsonb(lab.topics)) from lab where cardinality(lab.topics) > 0),
-                '{}'::jsonb);
+    -- all of the item's topics (the topic filter shows it when any of them was picked): Jev's, and the topic of the
+    -- section the editors put it in
+    || coalesce((select jsonb_build_object('topics', to_jsonb(array(
+                   select distinct t
+                   from unnest(lab.topics || public.app_topic_for(concat_ws(' / ', p_section, p_subsection))) t
+                   where t is not null)))
+                 from lab), '{}'::jsonb);
 $function$;
 
 CREATE OR REPLACE FUNCTION public.app_build_feed(p_prof user_preferences, p_lang text, p_aud text, p_from timestamp with time zone, p_to timestamp with time zone, p_regular bigint[], p_specials bigint[], p_filter boolean, p_title text, p_types jsonb)

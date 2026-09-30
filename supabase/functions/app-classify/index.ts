@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
       return json({ ...readAnswers(out, topics, threshold), model: out.model, usage: out.usage, ms: Date.now() - started });
     }
 
-    const summary = { ok: 0, failed: 0 };
+    const summary = { labelled: 0, failed: 0 };
     while (Date.now() - started < BUDGET_MS) {
       const { data: queue, error: qErr } = await db.rpc('app_label_queue', { p_limit: BATCH });
       if (qErr) throw qErr;
@@ -232,11 +232,11 @@ Deno.serve(async (req) => {
         const results = await Promise.all(
           items.slice(i, i + CONCURRENCY).map((it) => classifyOne(db, apiKey, model, topics, q, threshold, it)),
         );
-        for (const r of results) summary[r]++;
+        for (const r of results) summary[r === 'ok' ? 'labelled' : 'failed']++;
       }
       if (items.length < BATCH) break;
     }
-    if (summary.ok || summary.failed) console.log('app-classify', { ...summary, ms: Date.now() - started });
+    if (summary.labelled || summary.failed) console.log('app-classify', { ...summary, ms: Date.now() - started });
     return json({ ok: true, ...summary });
   } catch (e) {
     console.error('app-classify', e);

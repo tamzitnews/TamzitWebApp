@@ -260,6 +260,9 @@ SQLEND
   check "push function: secret accepted, old special update not re-pushed" "s==200 and d.get('skipped') is True and d.get('reason')=='too_old'" "$TMP/out" "$s"
   s=$(call POST "$FN/app-push" "$ANON" '{"edition_id":1}'); check "push function rejects calls without the secret" "s==403" "$TMP/out" "$s"
 
+  echo "select public.app_ad_images_needed(48) as r" | "$SQL" - > "$TMP/out"
+  check "ads without a WhatsApp image are listed for the Whapi step" "isinstance(d[0]['r']['ids'], list) and (d[0]['r']['since'] is not None) == (len(d[0]['r']['ids']) > 0)" "$TMP/out" 200
+
   echo "== item classification (Jev; shadow mode unless jev_apply_to_feed)"
   s=$(call POST "$FN/app-classify" "$ANON" '{}'); check "classify function rejects calls without the secret" "s==403" "$TMP/out" "$s"
   s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-classify" -H "Authorization: Bearer $ANON" -H 'Content-Type: application/json' -H "x-app-secret: $SECRET" -d '{}')
@@ -280,7 +283,7 @@ select json_build_object(
   'shadow_topics', (select n from shadow),
   'applied', (select count(*) from q1, jsonb_array_elements(q1.j) x
               cross join lateral public.app_item_by_id(x ->> 'item_id', x ->> 'lang', 'general', 'informative', null) as i(item)
-              where i.item -> 'topics' = '["sports"]' and i.item ->> 'topic_id' = 'sports' and i.item ->> 'level' = 'critical')) as r;
+              where i.item -> 'topics' ? 'sports' and i.item ->> 'topic_id' = 'sports' and i.item ->> 'level' = 'critical')) as r;
 rollback;
 SQLEND
   check "label queue: claims items once; labels change nothing in shadow mode, set topics and level when applied (rolled back)" "d[0]['r']['q1']==0 or (d[0]['r']['overlap']==0 and d[0]['r']['shadow_topics']==0 and d[0]['r']['applied']==d[0]['r']['q1'])" "$TMP/out" 200

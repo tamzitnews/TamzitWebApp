@@ -124,7 +124,7 @@ service, for example, is mostly `daily`). Special updates of the reader's langua
   its first send to 20 minutes after its last one (`ad` first, then the newest). `label` = the "> …" line without
   the colon ("המהדורה בחסות"), `sponsor` = a leading all-bold line or `null`, `body` = the rest without markup and
   link-only lines, `link_url` = the first URL, `image_url` = the image that went out on WhatsApp (`app_ad_images`,
-  from the WaSender webhook), else the attached Drive image once copied, else the preview
+  taken from Whapi by `app-media-sync`), else the attached Drive image once copied, else the preview
   image of `link_url` (`og:image` / `twitter:image`, YouTube thumbnail; copied to `app-media/previews/`), else `null`.
 - **`app-media-sync`** (edge function, `verify_jwt = false`, header `x-app-secret` = `app_settings.push_webhook_secret`)
   is called by `app_media_kick()`: a statement trigger on new `tamzit_edition_elements` rows and the pg_cron job
@@ -274,11 +274,12 @@ type Feed = {
   | `+972500000002` | `demo_family_phone`, `demo_family_email` | `demo-family@tamzit-app.test` | family owner (manual subscription); one invited member `+972500000003` |
 
   The demo accounts are shared by everyone testing: expect other testers to change their preferences.
-- `POST /functions/v1/app-wasender` — the WaSender webhook (Webhook URL of each WhatsApp session; header
-  `X-Webhook-Signature` = the `WASENDER_WEBHOOK_SECRET` secret). For an image message whose caption is the text of an ad
-  of the last day (`app_ad_element_for_caption`), decrypts the image through WaSender (`POST /api/decrypt-media`, secret
-  `WASENDER_API_KEY`), copies it to `app-media/wasender/<element id>` and records it in `app_ad_images`. Other messages
-  are ignored.
+- Ad images from Whapi (step of `app-media-sync`, `supabase/functions/app-media-sync/whapi.ts`; secret `WHAPI_TOKEN`,
+  one or more API tokens separated by commas): when `app_ad_images_needed()` lists ads of the last
+  `whapi_lookback_hours` without an image, lists the messages the numbers sent since then
+  (`GET https://gate.whapi.cloud/messages/list?from_me=true&time_from=…`), matches image captions to ads
+  (`app_ad_element_for_caption`), downloads the image (media `link`, else `GET /media/{id}`), copies it to
+  `app-media/whapi/<element id>` and records it in `app_ad_images` (source `whapi`). The first send of an ad wins.
 - `POST /functions/v1/app-classify` — topic and importance of every news item with Jev (TypeSafe's non-generative
   decision model, `POST https://api.typesafe.ai/v1/systemone`, secret `TYPESAFE_API_KEY`). Called by pg_cron every
   5 minutes and by the trigger `app_tamzit_editions_classify` (AFTER INSERT on `tamzit_editions`, first insert of a
