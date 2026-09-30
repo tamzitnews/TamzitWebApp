@@ -279,10 +279,23 @@ type Feed = {
   of the last day (`app_ad_element_for_caption`), decrypts the image through WaSender (`POST /api/decrypt-media`, secret
   `WASENDER_API_KEY`), copies it to `app-media/wasender/<element id>` and records it in `app_ad_images`. Other messages
   are ignored.
+- `POST /functions/v1/app-classify` — topic and importance of every news item with Jev (TypeSafe's non-generative
+  decision model, `POST https://api.typesafe.ai/v1/systemone`, secret `TYPESAFE_API_KEY`). Called by pg_cron every
+  5 minutes and by the trigger `app_tamzit_editions_classify` (AFTER INSERT on `tamzit_editions`, first insert of a
+  text only); header `x-app-secret`. Claims unlabelled items with `app_label_queue` (news items of the last
+  `jev_lookback_hours`, one per distinct text `app_item_hash(lang, headline, body)`) and asks, per item, one Noul per
+  active topic (definitions from `app_settings.jev_rubric`) and one 3-level Score (general / important / critical).
+  Results → `app_item_labels(text_hash pk, status, topics text[], topic_probs, importance, importance_probs,
+  importance_confidence, model, …)`; review view `app_item_labels_review`. Body `{ "test": { lang, headline?, text } }`
+  classifies one text without storing. Without the secret or with `jev_enabled` false → `{ skipped }`.
+  Feed: only when `jev_apply_to_feed` is true, a parsed item's `topic_id` is its most likely label topic, the item gets
+  `topics: string[]` (the topic filter matches any of them), and `level` is the label's importance when its confidence
+  reaches `jev_importance_min_confidence`; otherwise items are unchanged (shadow mode).
 - `POST /functions/v1/app-push` — called by the trigger `app_tamzit_editions_push` (pg_net, AFTER INSERT on
   `tamzit_editions`) once per published edition: one per distinct special update (`special:<language>:<md5(text)>`) and
   one per regular edition (`edition:<language>:<track>:<slot>:<edition_date>`), claimed in `app_push_log` so the engine's
-  duplicate rows push once; checks the `x-app-secret` header; ignores editions older than 6 hours.
+  duplicate rows push once; checks the `x-app-secret` header; ignores editions older than `push_max_age_minutes` (120).
+  Texts from `app_settings` (`push_special_title_<lang>`, `push_special_body_<lang>`, `push_edition_body_<lang>`).
   - Special update: devices whose profile has `special_push = true` and the edition's language; title "עדכון מיוחד";
     Android channel `special`; data `{ type: 'special', edition_id: '<id>', url: 'tamzit://edition/<id>' }`.
   - Regular edition: devices whose profile has `edition_push = true` and who get this edition

@@ -259,6 +259,31 @@ SQLEND
   s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-push" -H "Authorization: Bearer $ANON" -H 'Content-Type: application/json' -H "x-app-secret: $SECRET" -d "{\"edition_id\":$OLD_SPECIAL}")
   check "push function: secret accepted, old special update not re-pushed" "s==200 and d.get('skipped') is True and d.get('reason')=='too_old'" "$TMP/out" "$s"
   s=$(call POST "$FN/app-push" "$ANON" '{"edition_id":1}'); check "push function rejects calls without the secret" "s==403" "$TMP/out" "$s"
+
+  echo "== item classification (Jev; shadow mode unless jev_apply_to_feed)"
+  s=$(call POST "$FN/app-classify" "$ANON" '{}'); check "classify function rejects calls without the secret" "s==403" "$TMP/out" "$s"
+  s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-classify" -H "Authorization: Bearer $ANON" -H 'Content-Type: application/json' -H "x-app-secret: $SECRET" -d '{}')
+  check "classify function: runs, or skips without TYPESAFE_API_KEY" "s==200 and (d.get('ok') is True or d.get('reason') in ('no_api_key','disabled'))" "$TMP/out" "$s"
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+begin;
+create temp table q1 as select public.app_label_queue(3) as j;
+create temp table q2 as select public.app_label_queue(3) as j;
+update public.app_item_labels l set status = 'ok', topics = array['sports'], importance = 'critical', importance_confidence = 0.99
+where l.text_hash in (select x ->> 'hash' from q1, jsonb_array_elements(q1.j) x);
+create temp table shadow as
+  select count(*) filter (where i.item ? 'topics') as n from q1, jsonb_array_elements(q1.j) x
+  cross join lateral public.app_item_by_id(x ->> 'item_id', x ->> 'lang', 'general', 'informative', null) as i(item);
+update public.app_settings set value = 'true' where key = 'jev_apply_to_feed';
+select json_build_object(
+  'q1', (select jsonb_array_length(j) from q1),
+  'overlap', (select count(*) from q1, jsonb_array_elements(q1.j) a, q2, jsonb_array_elements(q2.j) b where a ->> 'hash' = b ->> 'hash'),
+  'shadow_topics', (select n from shadow),
+  'applied', (select count(*) from q1, jsonb_array_elements(q1.j) x
+              cross join lateral public.app_item_by_id(x ->> 'item_id', x ->> 'lang', 'general', 'informative', null) as i(item)
+              where i.item -> 'topics' = '["sports"]' and i.item ->> 'topic_id' = 'sports' and i.item ->> 'level' = 'critical')) as r;
+rollback;
+SQLEND
+  check "label queue: claims items once; labels change nothing in shadow mode, set topics and level when applied (rolled back)" "d[0]['r']['q1']==0 or (d[0]['r']['overlap']==0 and d[0]['r']['shadow_topics']==0 and d[0]['r']['applied']==d[0]['r']['q1'])" "$TMP/out" 200
 fi
 
 echo "== cleanup"
