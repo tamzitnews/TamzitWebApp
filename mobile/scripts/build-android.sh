@@ -274,8 +274,8 @@ grep -q "name='il.org.tamzit.app' versionCode='$VERSION_CODE'" <<< "$BADGING" ||
 grep -q "native-code: 'arm64-v8a' 'x86_64'" <<< "$BADGING" || die "unexpected ABIs"
 if grep -q "application-debuggable" <<< "$BADGING"; then die "APK is debuggable"; fi
 if [ -f "$MOBILE_DIR/google-services.json" ]; then
-  "$BUILD_TOOLS/aapt2" dump resources "$APK_SRC" 2>/dev/null | grep -q 'string/google_app_id' \
-    || die "google-services.json was given but the APK has no google_app_id (no push)"
+  RESOURCES="$("$BUILD_TOOLS/aapt2" dump resources "$APK_SRC" 2>/dev/null)"  # not piped into grep -q (pipefail + SIGPIPE)
+  grep -q 'string/google_app_id' <<< "$RESOURCES" || die "google-services.json was given but the APK has no google_app_id (no push)"
   echo "push: Firebase config embedded"
 fi
 APK_LIST="$(unzip -l "$APK_SRC")"
