@@ -29,6 +29,10 @@ export type FeedItem = {
   published_at: string;
   corrected_at: string | null;
   saved: boolean;
+  /** All of the item's topics (Jev's and its section's) when the Jev classification is applied; the filter uses it. */
+  topics?: string[];
+  /** Pilot only (app_settings.jev_show_labels): what Jev said about the item, shown small under it. */
+  ai?: { topics: string[]; importance: Level | null; confidence: number | null };
 };
 
 export type Ad = {

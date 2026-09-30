@@ -137,28 +137,42 @@ function withTimeout<T>(p: Promise<T>, ms: number) {
 }
 
 let registeredFor: string | null = null;
+let registering: string | null = null;
 
-/** Sends the device push token to the server for the signed-in user. Returns false if no token. */
-async function uploadPushToken(force = false): Promise<boolean> {
-  let token: string;
-  try {
-    const t = await withTimeout(Notifications.getDevicePushTokenAsync(), 10_000);
-    token = typeof t.data === 'string' ? t.data : JSON.stringify(t.data);
-  } catch {
-    // No Firebase config (google-services.json), Expo Go, emulator without Play services, …
-    return false;
-  }
+const tokenText = (t: Notifications.DevicePushToken) => (typeof t.data === 'string' ? t.data : JSON.stringify(t.data));
+
+/**
+ * Registers a push token for the signed-in reader, once per reader and token (`force`: again anyway).
+ * Never asks the OS for the token itself: on Android getDevicePushTokenAsync() also fires the push-token
+ * listener, so a listener that fetched the token again would loop.
+ */
+async function registerToken(token: string, force = false) {
   const { data } = await supabase.auth.getSession();
   const uid = data.session?.user.id;
-  if (!uid) return true; // registered on the next sign-in by useNotificationSync
+  if (!uid) return; // registered on the next sign-in by useNotificationSync
   const key = `${uid}:${token}`;
-  if (!force && registeredFor === key) return true;
+  if (registering === key || (!force && registeredFor === key)) return;
+  registering = key;
   try {
     await api.registerDevice(token, Platform.OS === 'ios' ? 'ios' : 'android');
     registeredFor = key;
   } catch {
     // network / server error: retried on the next foreground
+  } finally {
+    registering = null;
   }
+}
+
+/** Gets the device push token and registers it for the signed-in user. Returns false if no token. */
+async function uploadPushToken(force = false): Promise<boolean> {
+  let token: string;
+  try {
+    token = tokenText(await withTimeout(Notifications.getDevicePushTokenAsync(), 10_000));
+  } catch {
+    // No Firebase config (google-services.json), Expo Go, emulator without Play services, …
+    return false;
+  }
+  await registerToken(token, force);
   return true;
 }
 
@@ -252,7 +266,8 @@ export function useNotificationSync() {
         if (p === 'granted') uploadPushToken();
       });
     tryUpload();
-    const tokenSub = Notifications.addPushTokenListener(() => uploadPushToken(true));
+    // A new token (rotation): register exactly that one. Fetching it again here would loop (see registerToken).
+    const tokenSub = Notifications.addPushTokenListener((t) => registerToken(tokenText(t)));
     const appSub = AppState.addEventListener('change', (s) => {
       if (s === 'active') tryUpload();
     });

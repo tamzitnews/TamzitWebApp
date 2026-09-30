@@ -291,7 +291,9 @@ type Feed = {
   classifies one text without storing. Without the secret or with `jev_enabled` false → `{ skipped }`.
   Feed: only when `jev_apply_to_feed` is true, a parsed item's `topic_id` is its most likely label topic, the item gets
   `topics: string[]` (the topic filter matches any of them), and `level` is the label's importance when its confidence
-  reaches `jev_importance_min_confidence`; otherwise items are unchanged (shadow mode).
+  reaches `jev_importance_min_confidence`; otherwise items are unchanged (shadow mode). With `jev_show_labels` too
+  (pilot, migration 0018) the item also carries `ai: { topics: string[], importance, confidence }` (Jev's raw answer),
+  shown by the app in a small line under the item (`NewsItem` → `JevLine`). Both are on in the pilot since 2026-09-30.
 - `POST /functions/v1/app-push` — called by the trigger `app_tamzit_editions_push` (pg_net, AFTER INSERT on
   `tamzit_editions`) once per published edition: one per distinct special update (`special:<language>:<md5(text)>`) and
   one per regular edition (`edition:<language>:<track>:<slot>:<edition_date>`), claimed in `app_push_log` so the engine's

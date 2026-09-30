@@ -133,7 +133,7 @@ s=$(rpc "$FREE" app_me); check "app_me free" "s==200 and d['is_premium'] is Fals
 FROM48=$(date -u -d '-48 hours' +%FT%TZ)
 s=$(rpc "$FREE" app_personal_edition "{\"p_from\":\"$FROM48\"}")
 check "personal edition (last 48h): shape" "s==200 and set(d)>={'window','edition_types','title','items','special','community','good_news','ad','audio','minutes','is_premium'}" "$TMP/out" "$s"
-check "personal edition: items filtered + ordered + capped" "0<len(d['items'])<=10 and all(i['level']=='critical' or ((i['topic_id'] is None or i['topic_id'] in ['security','economy','health','education','weather','transport','world']) and i['level'] in ('critical','important')) for i in d['items']) and [ {'critical':3,'important':2,'general':1}[i['level']] for i in d['items'] ]==sorted([{'critical':3,'important':2,'general':1}[i['level']] for i in d['items']], reverse=True)" "$TMP/out" "$s"
+check "personal edition: items filtered + ordered + capped" "0<len(d['items'])<=10 and all(i['level']=='critical' or ((i['topic_id'] is None or any(t in ['security','economy','health','education','weather','transport','world'] for t in [i['topic_id']] + (i.get('topics') or []))) and i['level'] in ('critical','important')) for i in d['items']) and [ {'critical':3,'important':2,'general':1}[i['level']] for i in d['items'] ]==sorted([{'critical':3,'important':2,'general':1}[i['level']] for i in d['items']], reverse=True)" "$TMP/out" "$s"
 check "personal edition: Hebrew items with string ids e<edition>-<n> / s<story>" "all(any('\u0590'<=ch<='\u05ff' for ch in i['body']) and isinstance(i['headline'], str) and (i['id'].startswith('e') or i['id'].startswith('s')) for i in d['items'])" "$TMP/out" "$s"
 check "personal edition: no promo / credits / links in items" "not any(x in (i['headline']+i['body']) for i in d['items'] for x in ('http', 'link.mmb', 'כתיבה:', 'לשיתוף עם חברים', '•', '*'))" "$TMP/out" "$s"
 check "personal edition: good_news, special, community, ad, audio shapes" "(d['good_news'] is None or d['good_news']['kind']=='good_news') and all(x['level']=='critical' for x in d['special']) and isinstance(d['community'], list) and (d['ad'] is None or (d['ad']['label'] and d['ad']['id'].startswith('ad') and 'image_url' in d['ad'])) and all('section' in x and 'subsection' in x for x in d['items']) and (d['audio'] is None or d['audio']['audio_url'].startswith('https://')) and d['minutes']>=1 and d['is_premium'] is False" "$TMP/out" "$s"
@@ -269,6 +269,7 @@ SQLEND
   check "classify function: runs, or skips without TYPESAFE_API_KEY" "s==200 and (d.get('ok') is True or d.get('reason') in ('no_api_key','disabled'))" "$TMP/out" "$s"
   "$SQL" - > "$TMP/out" <<'SQLEND'
 begin;
+update public.app_settings set value = 'false' where key = 'jev_apply_to_feed';   -- shadow mode first (rolled back)
 create temp table q1 as select public.app_label_queue(3) as j;
 create temp table q2 as select public.app_label_queue(3) as j;
 update public.app_item_labels l set status = 'ok', topics = array['sports'], importance = 'critical', importance_confidence = 0.99
@@ -287,6 +288,15 @@ select json_build_object(
 rollback;
 SQLEND
   check "label queue: claims items once; labels change nothing in shadow mode, set topics and level when applied (rolled back)" "d[0]['r']['q1']==0 or (d[0]['r']['overlap']==0 and d[0]['r']['shadow_topics']==0 and d[0]['r']['applied']==d[0]['r']['q1'])" "$TMP/out" 200
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+with l as (select l.item_id, l.lang from public.app_item_labels l where l.status = 'ok' and l.item_id is not null order by l.updated_at desc limit 5)
+select json_build_object(
+  'apply', public.app_setting_bool('jev_apply_to_feed', false), 'show', public.app_setting_bool('jev_show_labels', false),
+  'n', (select count(*) from l),
+  'with_ai', (select count(*) from l cross join lateral public.app_item_by_id(l.item_id, l.lang, 'general', 'informative', null) as i(item)
+              where jsonb_typeof(i.item -> 'ai' -> 'topics') = 'array' and i.item -> 'topics' is not null)) as r;
+SQLEND
+  check "labelled items carry topics (and the pilot's ai line) when applied" "not d[0]['r']['apply'] or d[0]['r']['n']==0 or d[0]['r']['with_ai']==(d[0]['r']['n'] if d[0]['r']['show'] else 0)" "$TMP/out" 200
 fi
 
 echo "== cleanup"
