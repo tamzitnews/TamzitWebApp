@@ -4,11 +4,13 @@
 // Classifies the news items that have no label yet (public.app_label_queue claims them) with Jev, TypeSafe's
 // non-generative decision model (POST https://api.typesafe.ai/v1/systemone, secret TYPESAFE_API_KEY). One request per
 // item, all questions together (Jev reads the item once and answers them in parallel):
-//   topic_<id>  Noul (yes/no) per active topic of app_topics, with the definition from app_settings.jev_rubric;
-//   importance  Score with three ordered levels: general, important, critical.
-// Results → app_item_labels: topics at or above jev_topic_threshold (most likely first), every probability, the
-// importance level with the highest probability and its confidence, the model version. A failed item is retried
-// later with a growing delay.
+//   main_topic  Choice among the active topics of app_topics: the one the item belongs to, the closest when none fits
+//               perfectly (so every item has a topic);
+//   topic_<id>  Noul (yes/no) per topic, with the definition from app_settings.jev_rubric: its further topics;
+//   importance  Score with two ordered levels: important (the edition's default), critical.
+// Results → app_item_labels: topics = the main topic first, then the others at or above jev_topic_threshold; every
+// probability; the importance level with the highest probability and its confidence; the model version. A failed
+// item is retried later with a growing delay.
 //
 // Body { "test": { "lang": "he", "section"?, "headline"?, "text" } } classifies one text and returns the raw answers
 // without storing anything (to try the rubric).
@@ -17,7 +19,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { adminClient, corsHeaders, env, getSettings, json, readBody, settingText } from '../_shared/app-common.ts';
 
 const API = 'https://api.typesafe.ai/v1/systemone';
-const LEVELS = ['general', 'important', 'critical'] as const;
+const LEVELS = ['important', 'critical'] as const;
 const LANG_NAME: Record<string, string> = { he: 'Hebrew', en: 'English', fr: 'French' };
 const BUDGET_MS = 45_000; // stay well inside the edge function limit; the rest waits for the next run
 const BATCH = 16;
@@ -37,17 +39,18 @@ type QueueItem = {
   headline: string | null;
   body: string;
 };
-type Answer = { type: string; noul?: number; probabilities?: Record<string, number>; confidence?: number };
+type Answer = { type: string; noul?: number; choice?: string; probabilities?: Record<string, number>; confidence?: number };
 type JevResponse = { model: string; answers: Record<string, Answer>; usage?: { input_tokens?: number } };
 
 const DEFAULT_IMPORTANCE = {
   instructions: 'How important is this news item for a reader in Israel today?',
   levels: [
-    'General: routine, local or soft news; interesting background that changes nothing for most readers today.',
-    'Important: significant news most readers in Israel would want to know today, without immediate danger or a need to act.',
-    'Critical: breaking or exceptional news of major national impact, or news that requires readers to act or take care now (war events, attacks with casualties, rocket alerts and Home Front instructions, major disasters, emergency decisions).',
+    'Important: news that belongs in the edition, of any topic (politics, security, economy, weather, sports, culture and the rest), including routine military activity, forecasts and results. Almost every item is at this level.',
+    'Critical: exceptional news of major national impact, or news that requires readers to act or take care now: Israelis killed in an attack or in combat, a mass-casualty event, a major escalation, rocket or drone alerts and Home Front instructions, a major disaster, emergency government decisions. Routine military activity is not critical.',
   ],
 };
+const MAIN_TOPIC_INSTRUCTIONS =
+  'Which one topic does this news item belong to? Choose the closest topic, even when none fits perfectly.';
 
 function num(v: unknown, fallback: number, min: number, max: number): number {
   return typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : fallback;
@@ -80,6 +83,14 @@ async function ask(apiKey: string, body: unknown): Promise<JevResponse> {
 
 function questions(topics: Topic[], rubric: Rubric): Record<string, unknown> {
   const q: Record<string, unknown> = {};
+  q.main_topic = {
+    type: 'choice',
+    instructions: MAIN_TOPIC_INSTRUCTIONS,
+    criteria: Object.fromEntries(topics.map((t) => {
+      const r = rubric.topics?.[t.id] ?? {};
+      return [t.id, r.covers ? `${t.name_en}: ${r.covers}` : t.name_en];
+    })),
+  };
   for (const t of topics) {
     const r = rubric.topics?.[t.id] ?? {};
     q[`topic_${t.id}`] = {
@@ -92,7 +103,7 @@ function questions(topics: Topic[], rubric: Rubric): Record<string, unknown> {
     };
   }
   const imp = rubric.importance ?? {};
-  const levels = Array.isArray(imp.levels) && imp.levels.length === 3 && imp.levels.every((l) => typeof l === 'string')
+  const levels = Array.isArray(imp.levels) && imp.levels.length === LEVELS.length && imp.levels.every((l) => typeof l === 'string')
     ? imp.levels
     : DEFAULT_IMPORTANCE.levels;
   q.importance = { type: 'score', instructions: imp.instructions || DEFAULT_IMPORTANCE.instructions, criteria: levels };
@@ -115,10 +126,14 @@ function readAnswers(out: JevResponse, topics: Topic[], threshold: number) {
     const a = out.answers?.[`topic_${t.id}`];
     if (a && typeof a.noul === 'number') topicProbs[t.id] = Math.round(a.noul * 1000) / 1000;
   }
-  const chosen = Object.entries(topicProbs)
-    .filter(([, p]) => p >= threshold)
+  // the main topic (always one: the closest), then the other topics Jev said yes to
+  const main = out.answers?.main_topic;
+  const mainTopic = typeof main?.choice === 'string' && topics.some((t) => t.id === main.choice) ? main.choice : null;
+  const others = Object.entries(topicProbs)
+    .filter(([id, p]) => p >= threshold && id !== mainTopic)
     .sort((a, b) => b[1] - a[1])
     .map(([id]) => id);
+  const chosen = mainTopic ? [mainTopic, ...others] : others;
   const imp = out.answers?.importance;
   const p = imp?.probabilities ?? {};
   const importanceProbs: Record<string, number> = {};
@@ -128,6 +143,8 @@ function readAnswers(out: JevResponse, topics: Topic[], threshold: number) {
   if (!imp?.probabilities) importance = null;
   return {
     topics: chosen,
+    main_topic: mainTopic,
+    main_topic_probs: main?.probabilities ?? null,
     topic_probs: topicProbs,
     importance,
     importance_probs: imp?.probabilities ? importanceProbs : null,

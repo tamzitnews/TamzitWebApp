@@ -317,6 +317,8 @@ select json_build_object(
               where jsonb_typeof(i.item -> 'ai' -> 'topics') = 'array' and i.item -> 'topics' is not null)) as r;
 SQLEND
   check "labelled items carry topics (and the pilot's ai line) when applied" "not d[0]['r']['apply'] or d[0]['r']['n']==0 or d[0]['r']['with_ai']==(d[0]['r']['n'] if d[0]['r']['show'] else 0)" "$TMP/out" 200
+  echo "select json_build_object('n', count(*), 'no_topic', count(*) filter (where cardinality(topics) = 0 or main_topic is null), 'general', count(*) filter (where importance = 'general')) as r from public.app_item_labels where status = 'ok' and updated_at > '2026-09-30 14:40+00'" | "$SQL" - > "$TMP/out"
+  check "every classified item has a main topic, and no item is 'general' (nothing hidden by level)" "d[0]['r']['no_topic']==0 and d[0]['r']['general']==0" "$TMP/out" 200
 fi
 
 echo "== cleanup"
