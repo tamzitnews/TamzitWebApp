@@ -123,7 +123,8 @@ service, for example, is mostly `daily`). Special updates of the reader's langua
   `cta_link` element whose text is in the reader's language, linked to the edition or created from 2 minutes before
   its first send to 20 minutes after its last one (`ad` first, then the newest). `label` = the "> …" line without
   the colon ("המהדורה בחסות"), `sponsor` = a leading all-bold line or `null`, `body` = the rest without markup and
-  link-only lines, `link_url` = the first URL, `image_url` = the attached Drive image once copied, else the preview
+  link-only lines, `link_url` = the first URL, `image_url` = the image that went out on WhatsApp (`app_ad_images`,
+  from the WaSender webhook), else the attached Drive image once copied, else the preview
   image of `link_url` (`og:image` / `twitter:image`, YouTube thumbnail; copied to `app-media/previews/`), else `null`.
 - **`app-media-sync`** (edge function, `verify_jwt = false`, header `x-app-secret` = `app_settings.push_webhook_secret`)
   is called by `app_media_kick()`: a statement trigger on new `tamzit_edition_elements` rows and the pg_cron job
@@ -273,6 +274,11 @@ type Feed = {
   | `+972500000002` | `demo_family_phone`, `demo_family_email` | `demo-family@tamzit-app.test` | family owner (manual subscription); one invited member `+972500000003` |
 
   The demo accounts are shared by everyone testing: expect other testers to change their preferences.
+- `POST /functions/v1/app-wasender` — the WaSender webhook (Webhook URL of each WhatsApp session; header
+  `X-Webhook-Signature` = the `WASENDER_WEBHOOK_SECRET` secret). For an image message whose caption is the text of an ad
+  of the last day (`app_ad_element_for_caption`), decrypts the image through WaSender (`POST /api/decrypt-media`, secret
+  `WASENDER_API_KEY`), copies it to `app-media/wasender/<element id>` and records it in `app_ad_images`. Other messages
+  are ignored.
 - `POST /functions/v1/app-push` — called by the trigger `app_tamzit_editions_push` (pg_net, AFTER INSERT on
   `tamzit_editions`) once per published edition: one per distinct special update (`special:<language>:<md5(text)>`) and
   one per regular edition (`edition:<language>:<track>:<slot>:<edition_date>`), claimed in `app_push_log` so the engine's
