@@ -1,9 +1,11 @@
 // POST /functions/v1/app-auth-start
 // { mode: 'register'|'login', phone, full_name?, email?, birth_year?, city? }
 // → 200 { ok: true, masked_email }  |  4xx/5xx { error }
-// Sends a 6-digit code (valid 10 minutes) to the account email through Brevo or Resend.
+// Sends a 6-digit code (valid app_settings.otp_ttl_min minutes, default 10) to the account email through Brevo or Resend.
 import {
   adminClient,
+  AUTH_KEYS,
+  authLimits,
   codeHash,
   corsHeaders,
   countAttempts,
@@ -22,7 +24,6 @@ import {
   sendCodeEmail,
 } from '../_shared/app-common.ts';
 
-const MAX_STARTS = 5; // per phone per 15 minutes
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -38,11 +39,15 @@ Deno.serve(async (req) => {
     const db = adminClient();
 
     // Demo accounts: no email, no rate limit; the fixed demo code works in app-auth-verify.
-    const settings = await getSettings(db, DEMO_KEYS);
+    const settings = await getSettings(db, [...DEMO_KEYS, ...AUTH_KEYS]);
     const demo = demoAccount(settings, phone);
     if (demo) return json({ ok: true, masked_email: maskEmail(demo.email) });
 
-    if ((await countAttempts(db, phone, 'start')) >= MAX_STARTS) return json({ error: 'rate_limited' }, 429);
+    // code sends per phone per window (app_settings: auth_max_code_sends, auth_rate_window_min)
+    const limits = authLimits(settings);
+    if ((await countAttempts(db, phone, 'start', limits.windowMin)) >= limits.maxStarts) {
+      return json({ error: 'rate_limited' }, 429);
+    }
     const attemptId = await recordAttempt(db, phone, 'start', false);
 
     const { data: profile, error: profileError } = await db
@@ -101,12 +106,12 @@ Deno.serve(async (req) => {
       code_hash: await codeHash(phone, code),
       attempts: 0,
       created_at: new Date(now).toISOString(),
-      expires_at: new Date(now + 10 * 60 * 1000).toISOString(),
+      expires_at: new Date(now + limits.codeTtlMin * 60 * 1000).toISOString(),
     });
     if (codeError) throw codeError;
 
     try {
-      await sendCodeEmail(email, code);
+      await sendCodeEmail(email, code, limits.codeTtlMin);
     } catch (e) {
       console.error('app-auth-start: email delivery failed', String(e));
       await db.from('app_login_codes').delete().eq('phone', phone);

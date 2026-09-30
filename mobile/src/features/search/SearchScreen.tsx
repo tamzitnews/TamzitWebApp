@@ -7,6 +7,7 @@ import { FlatList, Keyboard, ScrollView, View, type ListRenderItem } from 'react
 import { AppBar, Button, Chip, EmptyState, ErrorState, Icon, Loading, Screen, T } from '@/components/ui';
 import { LiveNewsItem } from '@/features/saved/LiveNewsItem';
 import { useStableItemActions } from '@/features/saved/useStableItemActions';
+import { useAppConfig } from '@/lib/config';
 import { useStrings } from '@/lib/i18n';
 import { useItemStore } from '@/lib/itemStore';
 import { useMe } from '@/lib/queries';
@@ -16,7 +17,7 @@ import { radius, space } from '@/theme/tokens';
 import { useRecentSearches } from './recent';
 import { SearchBox } from './SearchBox';
 import { SearchStrings } from './strings';
-import { isPremiumRequired, MAX_RESULTS, MIN_CHARS, PAGE, useDebounced, useSearch } from './useSearch';
+import { isPremiumRequired, MAX_RESULTS, PAGE, useDebounced, useSearch } from './useSearch';
 
 const openPremium = () => router.push('/premium');
 
@@ -30,6 +31,7 @@ export function SearchScreen() {
   const recent = useRecentSearches((st) => st.items);
   const addRecent = useRecentSearches((st) => st.add);
   const clearRecent = useRecentSearches((st) => st.clear);
+  const minChars = useAppConfig().search_min_chars;
 
   const [text, setText] = useState('');
   const debounced = useDebounced(text);
@@ -44,7 +46,7 @@ export function SearchScreen() {
   const notPremium = me.data ? !me.data.is_premium : false;
   const search = useSearch(term, limit, !notPremium);
   const locked = notPremium || isPremiumRequired(search.error);
-  const results = typed.length >= MIN_CHARS ? search.data : undefined;
+  const results = typed.length >= minChars ? search.data : undefined;
 
   useEffect(() => {
     if (search.data) remember(search.data);
@@ -62,11 +64,11 @@ export function SearchScreen() {
 
   const onSubmit = useCallback(() => {
     const t = text.trim();
-    if (t.length < MIN_CHARS) return;
+    if (t.length < minChars) return;
     setInstant(text);
     addRecent(t);
     Keyboard.dismiss();
-  }, [text, addRecent]);
+  }, [text, minChars, addRecent]);
 
   const pickRecent = useCallback(
     (q: string) => {
@@ -118,10 +120,10 @@ export function SearchScreen() {
     body = <Upsell />;
   } else if (typed.length === 0) {
     body = <Start recent={recent} onPick={pickRecent} onClear={clearRecent} />;
-  } else if (typed.length < MIN_CHARS) {
+  } else if (typed.length < minChars) {
     body = (
       <T variant="caption" color="inkMuted" style={{ paddingHorizontal: space[5], paddingTop: space[4] }}>
-        {s.minChars}
+        {s.minChars(minChars)}
       </T>
     );
   } else if (!results || (results.length === 0 && search.isPlaceholderData)) {
@@ -178,7 +180,7 @@ export function SearchScreen() {
           placeholder={s.placeholder}
           clearLabel={s.clear}
           busyLabel={s.searching}
-          busy={!locked && search.isFetching && typed.length >= MIN_CHARS}
+          busy={!locked && search.isFetching && typed.length >= minChars}
           autoFocus={!notPremium}
           editable={!notPremium}
         />

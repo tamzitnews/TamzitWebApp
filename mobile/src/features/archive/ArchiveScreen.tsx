@@ -4,8 +4,9 @@ import { useCallback, useMemo, useState, type ReactElement } from 'react';
 import { RefreshControl, SectionList, View, type SectionListData, type SectionListRenderItem } from 'react-native';
 
 import { AppBar, Button, EmptyState, ErrorState, Loading, Screen, T } from '@/components/ui';
+import { useAppConfig } from '@/lib/config';
 import { useLang, useStrings } from '@/lib/i18n';
-import { useAppSettings, useMe } from '@/lib/queries';
+import { useMe } from '@/lib/queries';
 import type { ArchiveEntry, Language } from '@/lib/types';
 import { useTheme } from '@/theme/ThemeProvider';
 import { space } from '@/theme/tokens';
@@ -19,10 +20,8 @@ import { useRefreshOnFocus } from './useRefreshOnFocus';
 
 type Section = { key: string; title: string; locked: boolean; data: ArchiveEntry[] };
 
-/** Locked (older) editions shown to free readers as a teaser under the open days. */
-const LOCKED_TEASER = 3;
-
-function buildSections(entries: ArchiveEntry[], lang: Language, now: Date, lockedTitle: string): Section[] {
+/** `teaser`: how many locked (older) editions free readers see under the open days (0: none). */
+function buildSections(entries: ArchiveEntry[], lang: Language, now: Date, lockedTitle: string, teaser: number): Section[] {
   const sorted = [...entries].sort((a, b) => (a.published_at < b.published_at ? 1 : -1));
   const sections: Section[] = [];
   const byDay = new Map<string, Section>();
@@ -42,7 +41,7 @@ function buildSections(entries: ArchiveEntry[], lang: Language, now: Date, locke
     }
     sec.data.push(e);
   }
-  if (locked.length) sections.push({ key: 'locked', title: lockedTitle, locked: true, data: locked.slice(0, LOCKED_TEASER) });
+  if (locked.length && teaser > 0) sections.push({ key: 'locked', title: lockedTitle, locked: true, data: locked.slice(0, teaser) });
   return sections;
 }
 
@@ -52,18 +51,17 @@ const openEntry = (e: ArchiveEntry) => {
 };
 const openPremium = () => router.push('/premium');
 
-/** The archive tab: editions by day. Free readers get the last 7 days; premium readers everything and search. */
+/** The archive tab: editions by day. Free readers get the last free_archive_days days; premium readers everything and search. */
 export function ArchiveScreen() {
   const { c } = useTheme();
   const lang = useLang();
   const s = useStrings(ArchiveStrings);
   const me = useMe();
-  const settings = useAppSettings();
+  const { free_archive_days: freeDays, archive_locked_teaser: teaser } = useAppConfig();
   const { query, queryKey, loadMore, exhausted, loadingMore } = useArchive();
   useRefreshOnFocus(queryKey);
 
   const entries = query.data;
-  const freeDays = Number(settings.data?.free_archive_days) || 7;
   // Premium status comes from app_me; until it arrives, the rows' own `locked` flags tell.
   const premium: boolean | undefined = me.data ? me.data.is_premium : undefined;
   const locked = premium === undefined ? !!entries?.some((e) => e.locked) : !premium;
@@ -71,8 +69,8 @@ export function ArchiveScreen() {
   // Keyed by the calendar day so "היום / אתמול" are recomputed after midnight.
   const today = dayKey(new Date());
   const sections = useMemo(
-    () => (entries ? buildSections(entries, lang, dayStart(today), s.olderThan(freeDays)) : []),
-    [entries, lang, s, freeDays, today],
+    () => (entries ? buildSections(entries, lang, dayStart(today), s.olderThan(freeDays), teaser) : []),
+    [entries, lang, s, freeDays, teaser, today],
   );
 
   const [pulling, setPulling] = useState(false);
@@ -106,7 +104,7 @@ export function ArchiveScreen() {
     [],
   );
 
-  const subtitle = premium === undefined ? undefined : premium ? s.allEditions : s.lastDays(freeDays);
+  const subtitle = premium === undefined ? undefined : premium ? s.allEditions : freeDays > 0 ? s.lastDays(freeDays) : undefined;
   const header = <AppBar title={s.title} subtitle={subtitle} />;
 
   if (query.isPending) {

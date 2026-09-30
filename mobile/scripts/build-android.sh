@@ -11,6 +11,9 @@
 # Signing material lives OUTSIDE git in $TAMZIT_SIGNING_DIR (default /home/user/.tamzit-signing).
 # If it is missing, it is fetched from the private Supabase bucket `app-private`,
 # or generated once and uploaded there (needs SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY).
+# The Firebase config (google-services.json, for push) is fetched the same way from
+# app-private/android/signing/ and copied next to app.json (gitignored); app.config.js then
+# sets android.googleServicesFile. Without it the build still works, but has no push.
 set -euo pipefail
 
 BUMP=1 CLEAN=1 UPLOAD=0
@@ -19,7 +22,7 @@ for arg in "$@"; do
     --no-bump) BUMP=0 ;;
     --no-clean) CLEAN=0 ;;
     --upload) UPLOAD=1 ;;
-    -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -29,6 +32,7 @@ if [ -d /home/user ]; then DEFAULT_SIGNING_DIR=/home/user/.tamzit-signing; else 
 SIGNING_DIR="${TAMZIT_SIGNING_DIR:-$DEFAULT_SIGNING_DIR}"
 KEYSTORE="$SIGNING_DIR/tamzit-release.jks"
 KEYPROPS="$SIGNING_DIR/keystore.properties"
+GOOGLE_SERVICES="$SIGNING_DIR/google-services.json"
 PRIVATE_BUCKET="app-private"
 PRIVATE_PREFIX="android/signing"
 DIST="$MOBILE_DIR/dist"
@@ -115,10 +119,31 @@ EOF
   fi
 }
 
+# Firebase config for push (FCM). Kept with the signing material, never in git.
+ensure_google_services() {
+  if [ ! -f "$GOOGLE_SERVICES" ] && supabase_ok; then
+    code=$(sb_curl -o "$GOOGLE_SERVICES.part" -w '%{http_code}' \
+      "$SUPABASE_URL/storage/v1/object/authenticated/$PRIVATE_BUCKET/$PRIVATE_PREFIX/google-services.json")
+    if [ "$code" = 200 ]; then mv "$GOOGLE_SERVICES.part" "$GOOGLE_SERVICES"; chmod 600 "$GOOGLE_SERVICES"; else rm -f "$GOOGLE_SERVICES.part"; fi
+  fi
+  if [ -f "$GOOGLE_SERVICES" ]; then
+    node -e '
+      const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+      const pkgs = (c.client ?? []).map((x) => x.client_info?.android_client_info?.package_name);
+      if (!pkgs.includes("il.org.tamzit.app")) { console.error("google-services.json has no client for il.org.tamzit.app (has: " + pkgs.join(", ") + ")"); process.exit(1); }
+      console.log("Firebase project: " + c.project_info?.project_id);' "$GOOGLE_SERVICES" || die "bad google-services.json"
+    cp "$GOOGLE_SERVICES" "$MOBILE_DIR/google-services.json"
+  else
+    rm -f "$MOBILE_DIR/google-services.json"
+    echo "WARNING: no google-services.json (app-private/$PRIVATE_PREFIX); this build has NO push notifications" >&2
+  fi
+}
+
 prop() { grep -E "^$1=" "$KEYPROPS" | head -1 | cut -d= -f2-; }
 
 log "Signing material"
 ensure_keystore
+ensure_google_services
 export ORG_GRADLE_PROJECT_TAMZIT_UPLOAD_STORE_FILE="$SIGNING_DIR/$(prop storeFile)"
 export ORG_GRADLE_PROJECT_TAMZIT_UPLOAD_STORE_PASSWORD="$(prop storePassword)"
 export ORG_GRADLE_PROJECT_TAMZIT_UPLOAD_KEY_ALIAS="$(prop keyAlias)"
@@ -248,6 +273,11 @@ echo "permissions: $(grep -oP "^uses-permission: name='android\.permission\.\K[A
 grep -q "name='il.org.tamzit.app' versionCode='$VERSION_CODE'" <<< "$BADGING" || die "unexpected package/versionCode"
 grep -q "native-code: 'arm64-v8a' 'x86_64'" <<< "$BADGING" || die "unexpected ABIs"
 if grep -q "application-debuggable" <<< "$BADGING"; then die "APK is debuggable"; fi
+if [ -f "$MOBILE_DIR/google-services.json" ]; then
+  "$BUILD_TOOLS/aapt2" dump resources "$APK_SRC" 2>/dev/null | grep -q 'string/google_app_id' \
+    || die "google-services.json was given but the APK has no google_app_id (no push)"
+  echo "push: Firebase config embedded"
+fi
 APK_LIST="$(unzip -l "$APK_SRC")"
 grep -q 'assets/index.android.bundle' <<< "$APK_LIST" || die "JS bundle not embedded"
 echo "JS bundle: $(awk '/assets\/index.android.bundle/ {print $1}' <<< "$APK_LIST") bytes (Hermes bytecode: $(unzip -p "$APK_SRC" assets/index.android.bundle | head -c 4 | od -An -tx1 | tr -d ' '))"

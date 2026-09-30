@@ -6,9 +6,10 @@ import { Linking, View } from 'react-native';
 
 import { Button, ErrorState, ListGroup, ListRow, Loading, T, TextField } from '@/components/ui';
 import { CityField, type CityValue } from '@/features/auth/CityField';
+import { useAppConfig } from '@/lib/config';
 import { defineStrings, localName, useLang, useStrings } from '@/lib/i18n';
 import { forgetDeviceOnSignOut } from '@/lib/notifications';
-import { useAppSettings, useCities } from '@/lib/queries';
+import { useCities } from '@/lib/queries';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/types';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -112,13 +113,9 @@ const S = defineStrings({
   },
 });
 
-export const FALLBACK_SUPPORT_EMAIL = 'support@tamzit.org.il';
-
-/** The support address from app_settings (fallback: support@tamzit.org.il). */
+/** The support address (app setting support_email). */
 export function useSupportEmail() {
-  const settings = useAppSettings();
-  const v = settings.data?.support_email;
-  return typeof v === 'string' && v.includes('@') ? v : FALLBACK_SUPPORT_EMAIL;
+  return useAppConfig().support_email;
 }
 
 export function mailto(to: string, subject: string, body?: string) {

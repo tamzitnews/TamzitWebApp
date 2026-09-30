@@ -9,8 +9,10 @@
 //  - native FCM tokens → FCM HTTP v1 (needs the FCM_SERVICE_ACCOUNT secret: the service-account JSON)
 //  - Expo tokens (ExponentPushToken[…]) → Expo push API
 // Without anything to send through (e.g. no FCM_SERVICE_ACCOUNT and only native tokens) → 200 { skipped: true }.
+// Texts and the maximum age come from app_settings (push_special_title_<lang>, push_special_body_<lang>,
+// push_edition_body_<lang>, push_max_age_minutes); the constants below are the defaults.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { adminClient, corsHeaders, env, json, readBody } from '../_shared/app-common.ts';
+import { adminClient, corsHeaders, env, getSettings, json, readBody, settingInt, settingText } from '../_shared/app-common.ts';
 
 type Target = { token: string; headline_in_push: boolean; shabbat_city_id: string };
 type Lang = 'he' | 'en' | 'fr';
@@ -191,8 +193,11 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
   try {
     const db = adminClient();
-    const { data: secretRow } = await db.from('app_settings').select('value').eq('key', 'push_webhook_secret').maybeSingle();
-    const expected = secretRow?.value ? String(secretRow.value) : '';
+    const settings = await getSettings(db, [
+      'push_webhook_secret', 'push_max_age_minutes',
+      ...(['he', 'en', 'fr'] as const).flatMap((l) => [`push_special_title_${l}`, `push_special_body_${l}`, `push_edition_body_${l}`]),
+    ]);
+    const expected = settingText(settings, 'push_webhook_secret', '');
     if (!expected || req.headers.get('x-app-secret') !== expected) return json({ error: 'forbidden' }, 403);
 
     const body = await readBody(req);
@@ -202,7 +207,8 @@ Deno.serve(async (req) => {
     const { data: payload, error: pErr } = await db.rpc('app_push_payload', { p_edition_id: editionId });
     if (pErr) throw pErr;
     if (!payload) return json({ error: 'not_found' }, 404);
-    if (Date.now() - new Date(payload.created_at as string).getTime() > 6 * 3600 * 1000) {
+    const maxAgeMin = settingInt(settings, 'push_max_age_minutes', 120, 10, 1440);
+    if (Date.now() - new Date(payload.created_at as string).getTime() > maxAgeMin * 60_000) {
       return json({ skipped: true, reason: 'too_old' });
     }
 
@@ -237,13 +243,15 @@ Deno.serve(async (req) => {
 
     const kind = payload.track === 'daily' ? 'daily' : String(payload.kind ?? 'evening');
     const title = special
-      ? SPECIAL_TITLE[language]
+      ? settingText(settings, `push_special_title_${language}`, SPECIAL_TITLE[language])
       : READY[language](EDITION_NAME[language][kind] ?? EDITION_NAME[language].evening);
     const data: Record<string, string> = special
       ? { type: 'special', edition_id: String(editionId), url: `tamzit://edition/${editionId}` }
       : { type: 'edition', url: 'tamzit://' };
     const headline = typeof payload.headline === 'string' && payload.headline ? payload.headline : null;
-    const fallback = special ? SPECIAL_BODY[language] : EDITION_BODY[language];
+    const fallback = special
+      ? settingText(settings, `push_special_body_${language}`, SPECIAL_BODY[language])
+      : settingText(settings, `push_edition_body_${language}`, EDITION_BODY[language]);
     const message = (t: Target) => (t.headline_in_push && headline ? headline : fallback);
 
     let sent = 0;

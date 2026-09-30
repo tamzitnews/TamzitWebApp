@@ -3,12 +3,12 @@ import { memo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { Button, Icon, Segmented, T, TextField } from '@/components/ui';
+import { useAppConfig } from '@/lib/config';
 import { useStrings } from '@/lib/i18n';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space, touchMin } from '@/theme/tokens';
 import { DONATE_S } from './strings';
 
-export const DONATION_AMOUNTS = [18, 36, 100, 180] as const;
 export type DonationFrequency = 'once' | 'monthly';
 
 const AmountChip = memo(function AmountChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
@@ -21,6 +21,7 @@ const AmountChip = memo(function AmountChip({ label, selected, onPress }: { labe
       style={({ pressed }) => ({
         flex: 1,
         minHeight: touchMin,
+        minWidth: 64,
         borderRadius: radius.pill,
         borderWidth: 1.5,
         borderColor: selected ? c.brand : c.lineStrong,
@@ -49,11 +50,17 @@ export function DonationCard({
 }) {
   const { c } = useTheme();
   const s = useStrings(DONATE_S);
-  const [frequency, setFrequency] = useState<DonationFrequency>('monthly');
-  const [amount, setAmount] = useState<number | 'other'>(36);
+  const cfg = useAppConfig();
+  const amounts = cfg.donation_amounts;
+  // null = not chosen yet: the preselection follows the app settings, which may load after the first render.
+  const [frequencyChoice, setFrequency] = useState<DonationFrequency | null>(null);
+  const [amountChoice, setAmount] = useState<number | 'other' | null>(null);
   const [other, setOther] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
+  const frequency = frequencyChoice ?? cfg.donation_default_frequency;
+  const amount =
+    amountChoice ?? (amounts.includes(cfg.donation_default_amount) ? cfg.donation_default_amount : amounts[0]);
   const value = amount === 'other' ? Number(other) : amount;
   const valid = Number.isFinite(value) && value > 0 && value <= 1_000_000;
   const label = !valid ? s.ctaEmpty : frequency === 'monthly' ? s.ctaMonthly(value) : s.cta(value);
@@ -86,8 +93,8 @@ export function DonationCard({
         <T variant="caption" color="inkMuted" weight={600}>
           {s.amount}
         </T>
-        <View style={{ flexDirection: 'row', gap: space[2] }}>
-          {DONATION_AMOUNTS.map((a) => (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
+          {amounts.map((a) => (
             <AmountChip key={a} label={`₪${a}`} selected={amount === a} onPress={() => setAmount(a)} />
           ))}
         </View>

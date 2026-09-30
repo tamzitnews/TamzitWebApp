@@ -158,7 +158,7 @@ Reference data:
 - `app_communities(id text pk, name_he, name_en, name_fr, description_he, description_en, description_fr, city_id text → app_cities, sort, active)`
 - `app_cities(id text pk, name_he, name_en, name_fr, lat float8, lon float8, tzid text, in_israel bool, candle_minutes int, sort, active)` — Shabbat times and the registration city list.
 - `app_rest_periods(city_id → app_cities, starts_at, ends_at, kind ('shabbat'|'yomtov'), includes_shabbat bool, holiday_name text null; pk(city_id, starts_at))` — see below.
-- `app_settings(key text pk, value jsonb)` — keys: `free_archive_days` (7), `max_items` (10), `donation_url`, `support_email`, `demo_phone`, `demo_code`, `demo_email`, `demo_premium_phone`, `demo_premium_email`, `demo_family_phone`, `demo_family_email`; server-only: `functions_base_url`, `push_webhook_secret`.
+- `app_settings(key text pk, value jsonb, title, description, category, value_type, constraints jsonb, default_value jsonb, is_public bool, is_secret bool, sort, updated_at)` — the catalog of the service's parameters (migration 0015; ~60 rows, each with a Hebrew explanation of what it controls and where it is implemented). A trigger (`app_settings_check`) refuses values that do not fit `value_type` / `constraints`. The server reads them with `app_setting_int/num/bool/text/texts/json(key, default)`; the edge functions with `getSettings` + `settingInt/settingText`. Public rows (`is_public and not is_secret`) are what the app reads, through `useAppConfig()` (mobile/src/lib/config.ts: typed, validated, with the same defaults): `donation_url`, `support_email`, `website_url`, `privacy_url`, `donation_amounts`, `donation_default_amount`, `donation_default_frequency`, `family_max_members`, `youth_age_range`, `free_archive_days`, `archive_locked_teaser`, `search_min_chars`, `edition_refresh_minutes`, `otp_resend_seconds`.
 
 User data (`profile_id` / `owner_id` → `user_preferences(user_id)` on delete cascade):
 - `app_subscriptions(id uuid pk, phone text, plan, source ('whatsapp'|'app_store'|'google_play'|'manual'), starts_at, ends_at null, external_ref text unique null, created_at)` — premium entitlements **keyed by phone**, so WhatsApp premium subscribers are recognised when they register with the same number. No client access.
@@ -169,11 +169,11 @@ User data (`profile_id` / `owner_id` → `user_preferences(user_id)` on delete c
 - `app_messages(id uuid pk, profile_id, title text, body text, item_id text null, created_at, read_at null)` — in-app messages (editor replies, corrections). Select/update(read_at) own.
 - `app_devices(id uuid pk, profile_id, push_token text unique, platform ('android'|'ios'), created_at, last_seen_at)` — own rows.
 - `app_donations(id uuid pk, profile_id, amount numeric, currency default 'ILS', frequency ('once'|'monthly'), status default 'initiated', created_at)` — insert/select own.
-- Edge functions only: `app_pending_registrations(phone pk, full_name, email, birth_year, city, created_at, expires_at)`, `app_login_attempts(id, phone, kind ('start'|'verify'), created_at, success)`, `app_login_codes(phone pk, email, mode, code_hash, attempts, created_at, expires_at)` (6-digit codes, hashed, 10 minutes, 5 wrong guesses), `app_push_log(key pk, edition_id, created_at, pushed_at, result)` (one push per distinct special update).
+- Edge functions only: `app_pending_registrations(phone pk, full_name, email, birth_year, city, created_at, expires_at)`, `app_login_attempts(id, phone, kind ('start'|'verify'), created_at, success)`, `app_login_codes(phone pk, email, mode, code_hash, attempts, created_at, expires_at)` (6-digit codes, hashed; validity, wrong guesses and rate limits from `app_settings`: `otp_ttl_min` 10, `auth_max_code_attempts` 5, `auth_max_code_sends` 5 / `auth_max_verifies` 10 per `auth_rate_window_min` 15), `app_push_log(key pk, edition_id, created_at, pushed_at, result)` (one push per distinct special update).
 
 **Client access.** Anon (before registration, onboarding) and signed-in users may select `app_topics`,
-`app_communities`, `app_cities` (active rows), `app_rest_periods`, and the public keys of `app_settings`
-(`free_archive_days`, `max_items`, `donation_url`, `support_email`; never `demo_*`). Signed-in users have own-row
+`app_communities`, `app_cities` (active rows), `app_rest_periods`, and the public rows of `app_settings`
+(`is_public and not is_secret`; never `demo_*`, `push_webhook_secret`). Signed-in users have own-row
 access to the user tables as listed. Everything else (the engine tables, `user_preferences`, subscriptions, the
 edge-function tables) is not readable by clients: content and the profile come from the RPCs.
 
@@ -295,7 +295,7 @@ type Feed = {
 
 ## Rest periods (Shabbat / Yom Tov times)
 
-- `app_rest_periods(city_id → app_cities on delete cascade, starts_at timestamptz, ends_at timestamptz, kind ('shabbat'|'yomtov'), includes_shabbat bool, holiday_name text null; pk(city_id, starts_at))` — candle lighting → havdalah per city, consecutive days merged, Israel vs diaspora by city. Readable by anon and authenticated. Filled by `supabase/scripts/gen_rest_periods.mjs` (server-side; the app ships no calendar library): re-run at least yearly and whenever a city is added or its coordinates / candle_minutes change. The app downloads now−7d → now+90d for the reader's city and keeps it on the device; offline with no data it falls back to its own sunset calculation for plain Shabbat.
+- `app_rest_periods(city_id → app_cities on delete cascade, starts_at timestamptz, ends_at timestamptz, kind ('shabbat'|'yomtov'), includes_shabbat bool, holiday_name text null; pk(city_id, starts_at))` — candle lighting → havdalah per city, consecutive days merged, Israel vs diaspora by city. Readable by anon and authenticated. Filled by `supabase/scripts/gen_rest_periods.mjs` (server-side; the app ships no calendar library): covers 10 years ahead; re-run whenever a city is added or its coordinates / candle_minutes change. The app downloads now−7d → now+90d for the reader's city and keeps it on the device; offline with no data it falls back to its own sunset calculation for plain Shabbat.
 
 ## Storage
 

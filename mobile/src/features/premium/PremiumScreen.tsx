@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Card, ForwardChevron, Icon, IconButton, SquaresMotif, T } from '@/components/ui';
 import { Sheet } from '@/features/settings/components';
+import { useAppConfig } from '@/lib/config';
 import { useStrings } from '@/lib/i18n';
 import { useMe } from '@/lib/queries';
 import { useSession } from '@/state/session';
@@ -62,6 +63,7 @@ export function PremiumScreen() {
   const insets = useSafeAreaInsets();
   const { session } = useSession();
   const me = useMe(!!session);
+  const maxMembers = useAppConfig().family_max_members;
   const [sheet, setSheet] = useState(false);
 
   const plan = me.data?.plan ?? 'free';
@@ -71,7 +73,7 @@ export function PremiumScreen() {
   const openSheet = () => setSheet(true);
 
   const activeText =
-    plan === 'family' ? (role === 'owner' ? s.activeFamilyOwner : s.activeFamilyMember) : s.activePremium;
+    plan === 'family' ? (role === 'owner' ? s.activeFamilyOwner(maxMembers) : s.activeFamilyMember) : s.activePremium;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.surface }}>
@@ -144,8 +146,8 @@ export function PremiumScreen() {
           />
           <PlanCard
             name={s.familyName}
-            price={s.familyPrice}
-            features={s.familyFeatures}
+            price={s.familyPrice(maxMembers)}
+            features={s.familyFeatures(maxMembers)}
             cta={plan !== 'family' ? s.join : undefined}
             current={plan === 'family'}
             currentLabel={s.current}

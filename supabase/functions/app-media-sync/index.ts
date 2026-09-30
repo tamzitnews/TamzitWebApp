@@ -10,7 +10,7 @@
 //    all: the app plays it straight from the engine's public news-audio bucket).
 // The queue lives in app_media / app_link_previews (public.app_media_queue). Responds with a summary.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { adminClient, corsHeaders, env, json } from '../_shared/app-common.ts';
+import { adminClient, corsHeaders, env, getSettings, json, settingInt, settingText } from '../_shared/app-common.ts';
 
 const BUCKET = 'app-media';
 const MAX_FILE = 60 * 1024 * 1024;
@@ -299,9 +299,10 @@ async function syncLink(db: SupabaseClient, url: string): Promise<string> {
 
 // --- Cleanup ----------------------------------------------------------------
 
-async function expireOldAudio(db: SupabaseClient): Promise<number> {
+async function expireOldAudio(db: SupabaseClient, keepHours: number): Promise<number> {
   // created_at = when the file was queued, i.e. minutes after the engine attached it
-  const before = new Date(Date.now() - 24 * 3600_000).toISOString(); // audio is never kept longer than a day
+  // audio is never kept longer than a day (app_settings.english_audio_keep_hours, 1–24)
+  const before = new Date(Date.now() - Math.min(keepHours, 24) * 3600_000).toISOString();
   const { data } = await db
     .from('app_media')
     .select('drive_id, storage_path')
@@ -328,8 +329,8 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
   try {
     const db = adminClient();
-    const { data: secretRow } = await db.from('app_settings').select('value').eq('key', 'push_webhook_secret').maybeSingle();
-    const expected = secretRow?.value ? String(secretRow.value) : '';
+    const settings = await getSettings(db, ['push_webhook_secret', 'english_audio_keep_hours']);
+    const expected = settingText(settings, 'push_webhook_secret', '');
     if (!expected || req.headers.get('x-app-secret') !== expected) return json({ error: 'forbidden' }, 403);
 
     const { data: queue, error: qErr } = await db.rpc('app_media_queue', { p_limit: 12 });
@@ -341,7 +342,7 @@ Deno.serve(async (req) => {
     const count = (k: string) => (summary[k] = (summary[k] ?? 0) + 1);
     for (const id of files) count(`file_${await syncFile(db, id)}`);
     for (const url of links) count(`link_${await syncLink(db, url)}`);
-    const expired = await expireOldAudio(db);
+    const expired = await expireOldAudio(db, settingInt(settings, 'english_audio_keep_hours', 24, 1, 24));
     if (expired) summary.expired = expired;
     return json({ ok: true, ...summary });
   } catch (e) {

@@ -1,11 +1,16 @@
 import { defineStrings } from '@/lib/i18n';
 
+// The free archive span (app setting free_archive_days) in words: a week for 7, a day for 1, else n days.
+const heSpan = (n: number) => (n === 7 ? 'משבוע' : n === 1 ? 'מיום' : `מ־${n} ימים`);
+const enSpan = (n: number) => (n === 7 ? 'a week' : n === 1 ? 'a day' : `${n} days`);
+const frSpan = (n: number) => (n === 7 ? "d'une semaine" : n === 1 ? "d'un jour" : `de ${n} jours`);
+
 export const ArchiveStrings = defineStrings({
   he: {
     title: 'ארכיון',
-    lastDays: (n: number) => `${n} הימים האחרונים`,
+    lastDays: (n: number) => (n === 1 ? '24 השעות האחרונות' : `${n} הימים האחרונים`),
     allEditions: 'כל המהדורות',
-    olderThan: (n: number) => (n === 7 ? 'לפני יותר משבוע' : `לפני יותר מ־${n} ימים`),
+    olderThan: (n: number) => (n === 0 ? 'מהדורות קודמות' : `לפני יותר ${heSpan(n)}`),
     items: (n: number) => (n === 1 ? 'ידיעה אחת' : `${n} ידיעות`),
     premium: 'פרימיום',
     unread: 'לא נקראה',
@@ -26,9 +31,9 @@ export const ArchiveStrings = defineStrings({
   },
   en: {
     title: 'Archive',
-    lastDays: (n: number) => `Last ${n} days`,
+    lastDays: (n: number) => (n === 1 ? 'Last 24 hours' : `Last ${n} days`),
     allEditions: 'All editions',
-    olderThan: (n: number) => (n === 7 ? 'More than a week ago' : `More than ${n} days ago`),
+    olderThan: (n: number) => (n === 0 ? 'Earlier editions' : `More than ${enSpan(n)} ago`),
     items: (n: number) => (n === 1 ? '1 item' : `${n} items`),
     premium: 'Premium',
     unread: 'Unread',
@@ -49,9 +54,9 @@ export const ArchiveStrings = defineStrings({
   },
   fr: {
     title: 'Archives',
-    lastDays: (n: number) => `${n} derniers jours`,
+    lastDays: (n: number) => (n === 1 ? 'Dernières 24 heures' : `${n} derniers jours`),
     allEditions: 'Toutes les éditions',
-    olderThan: (n: number) => (n === 7 ? "Il y a plus d'une semaine" : `Il y a plus de ${n} jours`),
+    olderThan: (n: number) => (n === 0 ? 'Éditions précédentes' : `Il y a plus ${frSpan(n)}`),
     items: (n: number) => (n === 1 ? '1 article' : `${n} articles`),
     premium: 'Premium',
     unread: 'Non lue',

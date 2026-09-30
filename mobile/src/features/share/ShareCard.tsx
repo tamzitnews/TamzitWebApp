@@ -3,6 +3,7 @@ import { forwardRef } from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 
+import { urlHost, useAppConfig } from '@/lib/config';
 import type { FeedItem } from '@/lib/types';
 import { fonts, palette } from '@/theme/tokens';
 
@@ -17,14 +18,16 @@ export function shareDate(iso: string) {
 }
 
 /**
- * Design-system ShareCard: a 4:5 image with the logo, topic, headline, body, date and
- * tamzit.org.il, and the squares motif in the corner. Sizes scale with `width` (design width 320).
+ * Design-system ShareCard: a 4:5 image with the logo, topic, headline, body, date and the
+ * website's host (app setting website_url), and the squares motif in the corner. Sizes scale
+ * with `width` (design width 320).
  */
 export const ShareCard = forwardRef<View, { item: FeedItem; width: number; rtl: boolean }>(function ShareCard(
   { item, width, rtl },
   ref,
 ) {
   const k = width / 320;
+  const host = urlHost(useAppConfig().website_url);
   const topic = item.kind === 'community' ? item.community_name ?? item.topic_name : item.topic_name;
   return (
     <View
@@ -65,7 +68,7 @@ export const ShareCard = forwardRef<View, { item: FeedItem; width: number; rtl: 
       <View style={{ marginTop: 'auto', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
         <Text style={{ fontFamily: fonts[700], fontSize: 13 * k, lineHeight: 18 * k, color: L.inkMuted }}>{shareDate(item.published_at)}</Text>
         <Text style={{ fontFamily: fonts[700], fontSize: 13 * k, lineHeight: 18 * k, color: L.inkMuted, writingDirection: 'ltr' }}>
-          tamzit.org.il
+          {host}
         </Text>
       </View>
     </View>

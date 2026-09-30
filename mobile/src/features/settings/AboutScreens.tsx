@@ -7,6 +7,7 @@ import { useMemo, type ReactNode } from 'react';
 import { View } from 'react-native';
 
 import { Icon, ListGroup, ListRow, T } from '@/components/ui';
+import { useAppConfig } from '@/lib/config';
 import { defineStrings, useStrings } from '@/lib/i18n';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space } from '@/theme/tokens';
@@ -16,10 +17,6 @@ import { LUCIDE_ISC, RUBIK_OFL } from './licenseTexts';
 
 const verticalLogo = require('@/assets/brand/tamzit-logo-vertical.jpg');
 const parentLogo = require('@/assets/brand/lokchim-achrayut-logo.png');
-
-const SITE_URL = 'https://tamzit.org.il';
-// Placeholder until the privacy policy page is published.
-const PRIVACY_URL = 'https://tamzit.org.il/privacy';
 
 const S = defineStrings({
   he: {
@@ -91,6 +88,7 @@ const open = (url: string) => () => {
 export function AboutScreen() {
   const s = useStrings(S);
   const support = useSupportEmail();
+  const { website_url, privacy_url } = useAppConfig();
   const version = Constants.expoConfig?.version ?? '1.0.0';
   return (
     <SettingsPage title={s.title}>
@@ -106,8 +104,8 @@ export function AboutScreen() {
         {s.text}
       </T>
       <ListGroup>
-        <ListRow icon={Globe} title={s.site} onPress={open(SITE_URL)} right={<Icon as={ExternalLink} size={18} color="inkMuted" />} chevron={false} />
-        <ListRow icon={ShieldCheck} title={s.privacy} onPress={open(PRIVACY_URL)} right={<Icon as={ExternalLink} size={18} color="inkMuted" />} chevron={false} />
+        <ListRow icon={Globe} title={s.site} onPress={open(website_url)} right={<Icon as={ExternalLink} size={18} color="inkMuted" />} chevron={false} />
+        <ListRow icon={ShieldCheck} title={s.privacy} onPress={open(privacy_url)} right={<Icon as={ExternalLink} size={18} color="inkMuted" />} chevron={false} />
         <ListRow icon={Mail} title={s.contact} value={support} onPress={() => mailto(support, s.contactSubject)} chevron={false} />
         <ListRow icon={FileText} title={s.licenses} onPress={() => router.push('/licenses')} last />
       </ListGroup>

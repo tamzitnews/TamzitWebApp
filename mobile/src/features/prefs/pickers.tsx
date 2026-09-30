@@ -6,6 +6,7 @@ import { ActivityIndicator, View } from 'react-native';
 
 import { Button, Chip, Icon, LevelMeter, OptionCard, Segmented, T } from '@/components/ui';
 import { EDITION_ICONS } from '@/features/edition/EditionHeader';
+import { useAppConfig } from '@/lib/config';
 import { defineStrings, EDITION_NAMES, localName, slotEditionType, useLang, useStrings } from '@/lib/i18n';
 import { useCommunities, useTopics } from '@/lib/queries';
 import type { Audience, Community, EditionType, Language, LevelFilter, Style } from '@/lib/types';
@@ -16,7 +17,7 @@ const S = defineStrings({
   he: {
     trackGeneral: 'כללי',
     trackGeneralDesc: 'המהדורה הרגילה, לכל הגילאים',
-    trackYouth: 'נוער, גילאי \u206610–15\u2069',
+    trackYouth: (ages: string) => `נוער, גילאי \u2066${ages}\u2069`,
     trackYouthDesc: 'ידיעות שנכתבו לבני נוער, בשפה ברורה ובלי פרטים קשים',
     topicsLoading: 'טוענים את הנושאים',
     topicsError: 'לא הצלחנו לטעון את הנושאים.',
@@ -63,7 +64,7 @@ const S = defineStrings({
   en: {
     trackGeneral: 'General',
     trackGeneralDesc: 'The regular edition, for all ages',
-    trackYouth: 'Youth, ages 10–15',
+    trackYouth: (ages: string) => `Youth, ages ${ages}`,
     trackYouthDesc: 'News written for young readers, in clear language and without distressing details',
     topicsLoading: 'Loading topics',
     topicsError: "We couldn't load the topics.",
@@ -110,7 +111,7 @@ const S = defineStrings({
   fr: {
     trackGeneral: 'Général',
     trackGeneralDesc: "L'édition habituelle, pour tous les âges",
-    trackYouth: 'Jeunes, 10–15 ans',
+    trackYouth: (ages: string) => `Jeunes, ${ages} ans`,
     trackYouthDesc: 'Des nouvelles écrites pour les jeunes, dans un langage clair et sans détails pénibles',
     topicsLoading: 'Chargement des sujets',
     topicsError: "Nous n'avons pas pu charger les sujets.",
@@ -185,9 +186,10 @@ export function LanguagePicker({ value, onChange }: { value: Language; onChange:
 
 // ---------------------------------------------------------------- Track (audience)
 
-/** General edition, or the youth track (ages 10–15). */
+/** General edition, or the youth track (ages from the app setting youth_age_range, e.g. 10–15). */
 export function TrackPicker({ value, onChange }: { value: Audience; onChange: (v: Audience) => void }) {
   const s = useStrings(S);
+  const ages = useAppConfig().youth_age_range;
   return (
     <View accessibilityRole="radiogroup" style={groupStyle}>
       <OptionCard
@@ -199,7 +201,7 @@ export function TrackPicker({ value, onChange }: { value: Audience; onChange: (v
       />
       <OptionCard
         icon={Backpack}
-        title={s.trackYouth}
+        title={s.trackYouth(ages)}
         description={s.trackYouthDesc}
         selected={value === 'youth'}
         onPress={() => onChange('youth')}

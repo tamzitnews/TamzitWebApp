@@ -27,6 +27,7 @@ import { AppBar, ErrorState, ForwardChevron, Icon, ListGroup, ListRow, Loading, 
 import { SupporterBadge } from '@/features/premium/SupporterBadge';
 import { useFamilyMembers } from '@/features/premium/queries';
 import { useShabbatCity } from '@/features/shabbat/hooks';
+import { useAppConfig } from '@/lib/config';
 import { localName, useLang, useStrings } from '@/lib/i18n';
 import { useCommunities } from '@/lib/queries';
 import type { Me } from '@/lib/types';
@@ -117,6 +118,7 @@ export function SettingsHome() {
   const { permission } = useNotificationPermission();
   const data = me.data;
   const family = useFamilyMembers(data?.family_role === 'owner' ? data.profile.id : undefined);
+  const { family_max_members: maxMembers, youth_age_range: youthAges } = useAppConfig();
 
   if (sessionLoading || (signedIn && me.isLoading)) {
     return (
@@ -163,7 +165,7 @@ export function SettingsHome() {
         : s.premiumInactive;
   const familyValue =
     data?.family_role === 'owner'
-      ? s.familyCount(1 + (family.data?.length ?? 0))
+      ? s.familyCount(1 + (family.data?.length ?? 0), maxMembers)
       : data?.family_role === 'member'
         ? s.familyMember
         : undefined;
@@ -175,7 +177,7 @@ export function SettingsHome() {
 
       <ListGroup label={s.gEditions}>
         <ListRow icon={Globe} title={s.language} value={VALUE_LABELS.language[v.language]} onPress={go('/settings/language')} />
-        <ListRow icon={GraduationCap} title={s.track} value={VALUE_LABELS.audience[lang][v.audience]} onPress={go('/settings/track')} />
+        <ListRow icon={GraduationCap} title={s.track} value={VALUE_LABELS.audience[lang](youthAges)[v.audience]} onPress={go('/settings/track')} />
         <ListRow icon={SlidersHorizontal} title={s.topics} value={topicsValue} onPress={go('/settings/topics')} />
         <ListRow icon={Clock} title={s.rhythm} value={s.perDay(v.frequency)} onPress={go('/settings/rhythm')} />
         <ListRow icon={Gauge} title={s.level} value={VALUE_LABELS.level[lang][v.level_filter]} onPress={go('/settings/level')} />

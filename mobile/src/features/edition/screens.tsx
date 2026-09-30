@@ -6,6 +6,7 @@ import { View } from 'react-native';
 
 import { AppBar, Button, ErrorState, Icon, IconButton, Screen, T } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
+import { useAppConfig } from '@/lib/config';
 import { formatTime, useLang, useStrings } from '@/lib/i18n';
 import { qk, useUpdateProfile } from '@/lib/queries';
 import { usePrefs } from '@/state/prefs';
@@ -118,6 +119,7 @@ export function EditionViewScreen({ id }: { id: string }) {
 function LockedEdition() {
   const { c } = useTheme();
   const s = useStrings(S);
+  const freeDays = useAppConfig().free_archive_days;
   return (
     <View style={{ flex: 1, justifyContent: 'center', padding: space[5] }}>
       <View style={{ padding: space[6], borderRadius: radius.lg, backgroundColor: c.sunSoft, alignItems: 'center', gap: space[3] }}>
@@ -125,7 +127,7 @@ function LockedEdition() {
           <Icon as={Lock} size={26} color="onSun" />
         </View>
         <T variant="headline" align="center" accessibilityRole="header">
-          {s.lockedTitle}
+          {s.lockedTitle(freeDays)}
         </T>
         <T variant="caption" color="ink" align="center">
           {s.lockedText}

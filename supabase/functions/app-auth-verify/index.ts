@@ -7,6 +7,8 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
   adminClient,
+  AUTH_KEYS,
+  authLimits,
   codeHash,
   corsHeaders,
   countAttempts,
@@ -21,8 +23,6 @@ import {
   recordAttempt,
 } from '../_shared/app-common.ts';
 
-const MAX_VERIFIES = 10; // per phone per 15 minutes
-const MAX_CODE_ATTEMPTS = 5; // wrong guesses per issued code
 
 async function cityIdFor(db: SupabaseClient, city: string | null): Promise<string | null> {
   if (!city) return null;
@@ -46,13 +46,17 @@ Deno.serve(async (req) => {
     if (!code) return json({ error: 'invalid_code' }, 400);
 
     const db = adminClient();
-    const settings = await getSettings(db, DEMO_KEYS);
+    const settings = await getSettings(db, [...DEMO_KEYS, ...AUTH_KEYS]);
     const demo = demoAccount(settings, phone);
+    // verifies per phone per window, wrong guesses per issued code (app_settings)
+    const limits = authLimits(settings);
 
     // Demo phones are shared by testers and store review: no rate limit for them.
     let attemptId: number | null = null;
     if (!demo) {
-      if ((await countAttempts(db, phone, 'verify')) >= MAX_VERIFIES) return json({ error: 'rate_limited' }, 429);
+      if ((await countAttempts(db, phone, 'verify', limits.windowMin)) >= limits.maxVerifies) {
+        return json({ error: 'rate_limited' }, 429);
+      }
       attemptId = await recordAttempt(db, phone, 'verify', false);
     }
 
@@ -66,7 +70,7 @@ Deno.serve(async (req) => {
       const { data: row, error } = await db.from('app_login_codes').select('*').eq('phone', phone).maybeSingle();
       if (error) throw error;
       if (!row) return json({ error: 'not_found' }, 404);
-      if (new Date(row.expires_at).getTime() < Date.now() || row.attempts >= MAX_CODE_ATTEMPTS) {
+      if (new Date(row.expires_at).getTime() < Date.now() || row.attempts >= limits.maxCodeAttempts) {
         await db.from('app_login_codes').delete().eq('phone', phone);
         return json({ error: 'expired' }, 410);
       }

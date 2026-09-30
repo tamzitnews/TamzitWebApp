@@ -6,6 +6,7 @@ import { View } from 'react-native';
 import { T } from '@/components/ui';
 import { SettingsPage } from '@/features/settings/components';
 import { api } from '@/lib/api';
+import { parseAppConfig } from '@/lib/config';
 import { useStrings } from '@/lib/i18n';
 import { useAppSettings } from '@/lib/queries';
 import { useSession } from '@/state/session';
@@ -15,7 +16,6 @@ import { DonationCard, type DonationFrequency } from './DonationCard';
 import { DONATE_S } from './strings';
 
 const parentLogo = require('@/assets/brand/lokchim-achrayut-logo.png');
-const FALLBACK_DONATION_URL = 'https://www.charidy.com/lokchimachrayut/tam';
 
 export function DonateScreen() {
   const { c } = useTheme();
@@ -32,8 +32,8 @@ export function DonateScreen() {
     try {
       // The donation itself happens on the association's page; we only record the intent.
       if (session) await api.recordDonation(amount, frequency).catch(() => null);
-      const data = settings.data ?? (await settings.refetch()).data;
-      const url = typeof data?.donation_url === 'string' && data.donation_url ? data.donation_url : FALLBACK_DONATION_URL;
+      // The app setting donation_url (fetched now if the settings have not loaded yet), else the default.
+      const url = parseAppConfig(settings.data ?? (await settings.refetch()).data).donation_url;
       await WebBrowser.openBrowserAsync(url);
       setDone(true);
     } catch {

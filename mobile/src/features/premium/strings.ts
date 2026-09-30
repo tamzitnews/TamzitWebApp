@@ -1,5 +1,10 @@
 import { defineStrings } from '@/lib/i18n';
 
+// Family plan sizes are functions of `max`, the members besides the owner (app setting
+// family_max_members); the plan has max + 1 people.
+const heMembers = (max: number) => (max === 1 ? 'בן משפחה אחד' : `עד ${max} בני משפחה`);
+const enMembers = (max: number) => (max === 1 ? 'one family member' : `up to ${max} family members`);
+
 export const PREMIUM_S = defineStrings({
   he: {
     close: 'סגירה',
@@ -9,8 +14,8 @@ export const PREMIUM_S = defineStrings({
     premiumPrice: '[מחיר] ₪ לחודש',
     premiumFeatures: ['בלי פרסומות בכלל', 'כל הארכיון, עם חיפוש', 'תג תומך/ת בפרופיל'],
     familyName: 'משפחתי',
-    familyPrice: '[מחיר] ₪ לחודש · עד 5 בני משפחה',
-    familyFeatures: ['כל מה שבפרימיום, לכל אחד', 'עד 5 בני משפחה', 'לכל אחד ההגדרות והשפה שלו'],
+    familyPrice: (max: number) => `[מחיר] ₪ לחודש · עד ${max + 1} בני משפחה`,
+    familyFeatures: (max: number) => ['כל מה שבפרימיום, לכל אחד', `עד ${max + 1} בני משפחה`, 'לכל אחד ההגדרות והשפה שלו'],
     ribbon: 'מומלץ',
     join: 'להצטרפות',
     current: 'המסלול הנוכחי',
@@ -19,7 +24,7 @@ export const PREMIUM_S = defineStrings({
     supporter: 'תומך/ת',
     thanks: 'אתם תומכים. תודה.',
     activePremium: 'המנוי שלכם פעיל: בלי פרסומות, כל הארכיון והחיפוש.',
-    activeFamilyOwner: 'המנוי המשפחתי שלכם פעיל. אפשר להזמין עד 4 בני משפחה.',
+    activeFamilyOwner: (max: number) => `המנוי המשפחתי שלכם פעיל. אפשר להזמין ${heMembers(max)}.`,
     activeFamilyMember: 'אתם חלק ממנוי משפחתי: בלי פרסומות, כל הארכיון והחיפוש.',
     manageFamily: 'ניהול בני המשפחה',
     donateLead: 'רוצים לתמוך גם בלי מנוי?',
@@ -38,8 +43,8 @@ export const PREMIUM_S = defineStrings({
     premiumPrice: '[price] ₪ a month',
     premiumFeatures: ['No ads at all', 'The whole archive, with search', 'Supporter badge on your profile'],
     familyName: 'Family',
-    familyPrice: '[price] ₪ a month · up to 5 family members',
-    familyFeatures: ['Everything in Premium, for everyone', 'Up to 5 family members', 'Everyone keeps their own settings and language'],
+    familyPrice: (max: number) => `[price] ₪ a month · up to ${max + 1} family members`,
+    familyFeatures: (max: number) => ['Everything in Premium, for everyone', `Up to ${max + 1} family members`, 'Everyone keeps their own settings and language'],
     ribbon: 'Recommended',
     join: 'Join',
     current: 'Your current plan',
@@ -48,7 +53,7 @@ export const PREMIUM_S = defineStrings({
     supporter: 'Supporter',
     thanks: 'You’re a supporter. Thank you.',
     activePremium: 'Your subscription is active: no ads, the whole archive and search.',
-    activeFamilyOwner: 'Your family plan is active. You can invite up to 4 family members.',
+    activeFamilyOwner: (max: number) => `Your family plan is active. You can invite ${enMembers(max)}.`,
     activeFamilyMember: 'You’re part of a family plan: no ads, the whole archive and search.',
     manageFamily: 'Manage family members',
     donateLead: 'Want to support us without a subscription?',
@@ -67,8 +72,8 @@ export const PREMIUM_S = defineStrings({
     premiumPrice: '[prix] ₪ par mois',
     premiumFeatures: ['Aucune publicité', 'Toutes les archives, avec recherche', 'Badge de soutien sur votre profil'],
     familyName: 'Famille',
-    familyPrice: '[prix] ₪ par mois · jusqu’à 5 membres',
-    familyFeatures: ['Tout Premium, pour chacun', 'Jusqu’à 5 membres de la famille', 'Chacun garde ses réglages et sa langue'],
+    familyPrice: (max: number) => `[prix] ₪ par mois · jusqu’à ${max + 1} membres`,
+    familyFeatures: (max: number) => ['Tout Premium, pour chacun', `Jusqu’à ${max + 1} membres de la famille`, 'Chacun garde ses réglages et sa langue'],
     ribbon: 'Recommandé',
     join: 'S’abonner',
     current: 'Votre formule actuelle',
@@ -77,7 +82,7 @@ export const PREMIUM_S = defineStrings({
     supporter: 'Soutien',
     thanks: 'Vous nous soutenez. Merci.',
     activePremium: 'Votre abonnement est actif : sans publicité, toutes les archives et la recherche.',
-    activeFamilyOwner: 'Votre abonnement famille est actif. Vous pouvez inviter jusqu’à 4 membres.',
+    activeFamilyOwner: (max: number) => `Votre abonnement famille est actif. Vous pouvez inviter ${max === 1 ? 'un membre' : `jusqu’à ${max} membres`}.`,
     activeFamilyMember: 'Vous faites partie d’un abonnement famille : sans publicité, toutes les archives et la recherche.',
     manageFamily: 'Gérer les membres',
     donateLead: 'Envie de nous soutenir sans abonnement ?',
@@ -93,8 +98,9 @@ export const PREMIUM_S = defineStrings({
 export const FAMILY_S = defineStrings({
   he: {
     title: 'מנוי משפחתי',
-    ownerIntro: 'אפשר להזמין עד 4 בני משפחה. כל אחד נכנס לאפליקציה עם מספר הטלפון שלו ומקבל את כל מה שבפרימיום, עם ההגדרות והשפה שלו.',
-    count: (n: number) => `${n} מתוך 5, כולל אתכם`,
+    ownerIntro: (max: number) =>
+      `אפשר להזמין ${heMembers(max)}. כל אחד נכנס לאפליקציה עם מספר הטלפון שלו ומקבל את כל מה שבפרימיום, עם ההגדרות והשפה שלו.`,
+    count: (n: number, max: number) => `${n} מתוך ${max + 1}, כולל אתכם`,
     inviteTitle: 'הזמנת בן או בת משפחה',
     name: 'שם',
     phone: 'מספר טלפון',
@@ -110,8 +116,8 @@ export const FAMILY_S = defineStrings({
     removeConfirm: 'להסרה',
     cancel: 'ביטול',
     sendWhatsapp: 'לשליחת הזמנה בוואטסאפ',
-    waText: (name: string) =>
-      `היי ${name}, הוספתי אותך למנוי המשפחתי שלי בתמצית החדשות. מורידים את האפליקציה ונכנסים עם מספר הטלפון שלך, והפרימיום כבר פעיל. https://tamzit.org.il`,
+    waText: (name: string, site: string) =>
+      `היי ${name}, הוספתי אותך למנוי המשפחתי שלי בתמצית החדשות. מורידים את האפליקציה ונכנסים עם מספר הטלפון שלך, והפרימיום כבר פעיל. ${site}`,
     invitedOk: (name: string) => `${name} נוסף/ה למנוי. אפשר לשלוח הודעה בוואטסאפ.`,
     empty: 'עוד לא הזמנתם אף אחד.',
     full: 'המנוי המשפחתי מלא. כדי להזמין מישהו אחר, הסירו קודם אחד מבני המשפחה.',
@@ -125,13 +131,15 @@ export const FAMILY_S = defineStrings({
     memberTitle: 'אתם במנוי משפחתי',
     memberText: 'בלי פרסומות, כל הארכיון והחיפוש, עם ההגדרות והשפה שלכם. את המנוי מנהלים בעלי המנוי.',
     otherTitle: 'מנוי אחד לכל המשפחה',
-    otherText: 'במנוי המשפחתי עד 5 בני משפחה מקבלים את כל מה שבפרימיום: בלי פרסומות, כל הארכיון והחיפוש. כל אחד נכנס עם מספר הטלפון שלו, עם ההגדרות והשפה שלו.',
+    otherText: (max: number) =>
+      `במנוי המשפחתי עד ${max + 1} בני משפחה מקבלים את כל מה שבפרימיום: בלי פרסומות, כל הארכיון והחיפוש. כל אחד נכנס עם מספר הטלפון שלו, עם ההגדרות והשפה שלו.`,
     toPremium: 'לפרטים על המנוי',
   },
   en: {
     title: 'Family plan',
-    ownerIntro: 'You can invite up to 4 family members. Each one signs in with their own phone number and gets everything in Premium, with their own settings and language.',
-    count: (n: number) => `${n} of 5, including you`,
+    ownerIntro: (max: number) =>
+      `You can invite ${enMembers(max)}. Each one signs in with their own phone number and gets everything in Premium, with their own settings and language.`,
+    count: (n: number, max: number) => `${n} of ${max + 1}, including you`,
     inviteTitle: 'Invite a family member',
     name: 'Name',
     phone: 'Phone number',
@@ -147,8 +155,8 @@ export const FAMILY_S = defineStrings({
     removeConfirm: 'Remove',
     cancel: 'Cancel',
     sendWhatsapp: 'Send the invitation on WhatsApp',
-    waText: (name: string) =>
-      `Hi ${name}, I added you to my Tamzit family plan. Download the app and sign in with your phone number, and Premium is already on. https://tamzit.org.il`,
+    waText: (name: string, site: string) =>
+      `Hi ${name}, I added you to my Tamzit family plan. Download the app and sign in with your phone number, and Premium is already on. ${site}`,
     invitedOk: (name: string) => `${name} was added to the plan. You can send them a WhatsApp message.`,
     empty: 'You haven’t invited anyone yet.',
     full: 'Your family plan is full. To invite someone else, remove a member first.',
@@ -162,13 +170,15 @@ export const FAMILY_S = defineStrings({
     memberTitle: 'You’re on a family plan',
     memberText: 'No ads, the whole archive and search, with your own settings and language. The plan owner manages the subscription.',
     otherTitle: 'One plan for the whole family',
-    otherText: 'With the family plan, up to 5 family members get everything in Premium: no ads, the whole archive and search. Each one signs in with their own phone number, settings and language.',
+    otherText: (max: number) =>
+      `With the family plan, up to ${max + 1} family members get everything in Premium: no ads, the whole archive and search. Each one signs in with their own phone number, settings and language.`,
     toPremium: 'About the plans',
   },
   fr: {
     title: 'Abonnement famille',
-    ownerIntro: 'Vous pouvez inviter jusqu’à 4 membres de votre famille. Chacun se connecte avec son propre numéro et profite de tout Premium, avec ses réglages et sa langue.',
-    count: (n: number) => `${n} sur 5, vous compris`,
+    ownerIntro: (max: number) =>
+      `Vous pouvez inviter ${max === 1 ? 'un membre' : `jusqu’à ${max} membres`} de votre famille. Chacun se connecte avec son propre numéro et profite de tout Premium, avec ses réglages et sa langue.`,
+    count: (n: number, max: number) => `${n} sur ${max + 1}, vous compris`,
     inviteTitle: 'Inviter un membre de la famille',
     name: 'Nom',
     phone: 'Numéro de téléphone',
@@ -184,8 +194,8 @@ export const FAMILY_S = defineStrings({
     removeConfirm: 'Retirer',
     cancel: 'Annuler',
     sendWhatsapp: 'Envoyer l’invitation sur WhatsApp',
-    waText: (name: string) =>
-      `Bonjour ${name}, je t’ai ajouté à mon abonnement famille Tamzit. Télécharge l’application et connecte-toi avec ton numéro : le Premium est déjà actif. https://tamzit.org.il`,
+    waText: (name: string, site: string) =>
+      `Bonjour ${name}, je t’ai ajouté à mon abonnement famille Tamzit. Télécharge l’application et connecte-toi avec ton numéro : le Premium est déjà actif. ${site}`,
     invitedOk: (name: string) => `${name} a été ajouté à l’abonnement. Vous pouvez lui envoyer un message WhatsApp.`,
     empty: 'Vous n’avez encore invité personne.',
     full: 'Votre abonnement famille est complet. Pour inviter quelqu’un d’autre, retirez d’abord un membre.',
@@ -199,7 +209,8 @@ export const FAMILY_S = defineStrings({
     memberTitle: 'Vous faites partie d’un abonnement famille',
     memberText: 'Sans publicité, toutes les archives et la recherche, avec vos réglages et votre langue. Le titulaire gère l’abonnement.',
     otherTitle: 'Un abonnement pour toute la famille',
-    otherText: 'Avec l’abonnement famille, jusqu’à 5 membres profitent de tout Premium : sans publicité, toutes les archives et la recherche. Chacun se connecte avec son numéro, ses réglages et sa langue.',
+    otherText: (max: number) =>
+      `Avec l’abonnement famille, jusqu’à ${max + 1} membres profitent de tout Premium : sans publicité, toutes les archives et la recherche. Chacun se connecte avec son numéro, ses réglages et sa langue.`,
     toPremium: 'Voir les formules',
   },
 });

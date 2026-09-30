@@ -104,6 +104,31 @@ export async function getSettings(db: SupabaseClient, keys: string[]): Promise<S
   return out;
 }
 
+/** An integer setting within [min, max], else the default (app_settings validates values too). */
+export function settingInt(s: Settings, key: string, fallback: number, min: number, max: number): number {
+  const v = s[key];
+  return typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max ? v : fallback;
+}
+
+/** A non-empty text setting, else the default. */
+export function settingText(s: Settings, key: string, fallback: string): string {
+  const v = s[key];
+  return typeof v === 'string' && v.trim() ? v : fallback;
+}
+
+/** Login limits (app_settings; defaults as before). */
+export const AUTH_KEYS = ['otp_ttl_min', 'auth_rate_window_min', 'auth_max_code_sends', 'auth_max_verifies', 'auth_max_code_attempts'];
+
+export function authLimits(s: Settings) {
+  return {
+    codeTtlMin: settingInt(s, 'otp_ttl_min', 10, 2, 60),
+    windowMin: settingInt(s, 'auth_rate_window_min', 15, 1, 1440),
+    maxStarts: settingInt(s, 'auth_max_code_sends', 5, 1, 50),
+    maxVerifies: settingInt(s, 'auth_max_verifies', 10, 1, 100),
+    maxCodeAttempts: settingInt(s, 'auth_max_code_attempts', 5, 1, 20),
+  };
+}
+
 export const DEMO_KEYS = [
   'demo_phone', 'demo_code', 'demo_email',
   'demo_premium_phone', 'demo_premium_email',
@@ -133,8 +158,13 @@ export function demoAccount(s: Settings, phone: string): DemoAccount | null {
 // Rate limiting (app_login_attempts)
 // ---------------------------------------------------------------------------
 
-export async function countAttempts(db: SupabaseClient, phone: string, kind: 'start' | 'verify'): Promise<number> {
-  const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+export async function countAttempts(
+  db: SupabaseClient,
+  phone: string,
+  kind: 'start' | 'verify',
+  windowMin = 15,
+): Promise<number> {
+  const since = new Date(Date.now() - windowMin * 60 * 1000).toISOString();
   const { count, error } = await db
     .from('app_login_attempts')
     .select('id', { count: 'exact', head: true })
@@ -180,7 +210,7 @@ function parseFrom(from: string): { name: string; email: string } {
   return { name: 'תמצית החדשות', email: from.trim() };
 }
 
-function codeEmailHtml(code: string): string {
+function codeEmailHtml(code: string, ttlMin: number): string {
   return `<!doctype html>
 <html lang="he" dir="rtl">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>קוד כניסה</title></head>
@@ -195,7 +225,7 @@ function codeEmailHtml(code: string): string {
         <tr><td align="center" style="padding:12px 28px 4px 28px;">
           <div dir="ltr" style="display:inline-block;background:#eef0f6;border-radius:12px;padding:16px 28px;font-size:40px;font-weight:700;letter-spacing:10px;color:#182551;font-family:'Courier New',monospace;">${code}</div>
         </td></tr>
-        <tr><td style="padding:12px 28px 4px 28px;font-size:16px;line-height:1.6;">הקוד בתוקף ל־10 דקות.</td></tr>
+        <tr><td style="padding:12px 28px 4px 28px;font-size:16px;line-height:1.6;">הקוד בתוקף ל־${ttlMin} דקות.</td></tr>
         <tr><td style="padding:4px 28px 28px 28px;font-size:14px;line-height:1.6;color:#5b6378;">
           אם לא ביקשתם להתחבר, אפשר להתעלם מההודעה הזו. אף אחד לא יוכל להיכנס בלי הקוד.
         </td></tr>
@@ -208,13 +238,13 @@ function codeEmailHtml(code: string): string {
 }
 
 /** Sends the 6-digit code. Throws on provider errors. */
-export async function sendCodeEmail(to: string, code: string): Promise<void> {
+export async function sendCodeEmail(to: string, code: string, ttlMin = 10): Promise<void> {
   const provider = emailProvider();
   if (!provider) throw new Error('email_not_configured');
   const from = parseFrom(env('EMAIL_FROM') ?? 'תמצית החדשות <no-reply@tamzit.org.il>');
   const subject = `קוד הכניסה לתמצית החדשות: ${code}`;
-  const text = `קוד הכניסה שלכם לתמצית החדשות: ${code}\nהקוד בתוקף ל־10 דקות.\nאם לא ביקשתם להתחבר, אפשר להתעלם מההודעה.`;
-  const html = codeEmailHtml(code);
+  const text = `קוד הכניסה שלכם לתמצית החדשות: ${code}\nהקוד בתוקף ל־${ttlMin} דקות.\nאם לא ביקשתם להתחבר, אפשר להתעלם מההודעה.`;
+  const html = codeEmailHtml(code, ttlMin);
   let res: Response;
   if (provider === 'brevo') {
     res = await fetch('https://api.brevo.com/v3/smtp/email', {

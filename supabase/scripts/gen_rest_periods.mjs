@@ -12,9 +12,9 @@
 //    Pesach I and VII, Shavuot), Israel vs. diaspora by city.in_israel (second day abroad);
 //  - consecutive rest days form one period; holiday_name is the base name of its first Yom Tov.
 //
-// Usage:  SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node gen_rest_periods.mjs [--months 24] [--city jerusalem] [--dry]
-// Re-run at least once a year (the table covers the next 24 months), and whenever a city is added
-// to app_cities or its coordinates / candle_minutes change.
+// Usage:  SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node gen_rest_periods.mjs [--months 120] [--city jerusalem] [--dry]
+// The tables cover the next 10 years; re-run whenever a city is added to app_cities or its coordinates /
+// candle_minutes change (and once every few years to keep the 10-year horizon).
 import { HebrewCalendar, Location, flags } from '@hebcal/core';
 
 const URL_ = process.env.SUPABASE_URL;
@@ -24,7 +24,7 @@ const opt = (name, fallback) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? args[i + 1] : fallback;
 };
-const MONTHS = Number(opt('months', 24));
+const MONTHS = Number(opt('months', 120));
 const ONLY_CITY = opt('city', null);
 const DRY = args.includes('--dry');
 const PAST_DAYS = 7;
@@ -37,6 +37,9 @@ if (!URL_ || !KEY) {
 }
 
 const headers = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' };
+const CHUNK = 100; // rows per request / values per in.(…) filter (keeps URLs short)
+
+const chunks = (list, n = CHUNK) => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, (i + 1) * n));
 
 async function rest(path, init = {}) {
   const res = await fetch(`${URL_}/rest/v1/${path}`, { ...init, headers: { ...headers, ...(init.headers ?? {}) } });
@@ -163,17 +166,25 @@ async function main() {
     }
     // Upsert the new set, then drop rows in the window that the new computation no longer has
     // (e.g. after a city's candle_minutes changed): no moment without data for the city.
-    await rest('app_rest_periods?on_conflict=city_id,starts_at', {
-      method: 'POST',
-      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(periods),
-    });
-    const keep = periods.map((p) => `"${p.starts_at}"`).join(',');
-    await rest(
-      `app_rest_periods?city_id=eq.${encodeURIComponent(city.id)}&ends_at=gte.${encodeURIComponent(from.toISOString())}&starts_at=not.in.(${encodeURIComponent(keep)})`,
-      { method: 'DELETE', headers: { Prefer: 'return=minimal' } },
+    for (const part of chunks(periods)) {
+      await rest('app_rest_periods?on_conflict=city_id,starts_at', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify(part),
+      });
+    }
+    const keep = new Set(periods.map((p) => new Date(p.starts_at).getTime()));
+    const existing = await rest(
+      `app_rest_periods?select=starts_at&city_id=eq.${encodeURIComponent(city.id)}&ends_at=gte.${encodeURIComponent(from.toISOString())}`,
     );
-    console.log(`${city.id.padEnd(14)} ${periods.length} periods`);
+    const stale = existing.map((r) => r.starts_at).filter((t) => !keep.has(new Date(t).getTime()));
+    for (const part of chunks(stale)) {
+      await rest(
+        `app_rest_periods?city_id=eq.${encodeURIComponent(city.id)}&starts_at=in.(${encodeURIComponent(part.map((t) => `"${t}"`).join(','))})`,
+        { method: 'DELETE', headers: { Prefer: 'return=minimal' } },
+      );
+    }
+    console.log(`${city.id.padEnd(14)} ${periods.length} periods${stale.length ? `, ${stale.length} stale removed` : ''}`);
   }
 
   // Chol hamoed days in Israel (Sukkot, Pesach) → app_calendar_days: the service sends two editions on them
@@ -182,17 +193,23 @@ async function main() {
   if (DRY) {
     console.log('chol hamoed', days.map((d) => d.day).join(' '));
   } else if (days.length) {
-    await rest('app_calendar_days?on_conflict=day', {
-      method: 'POST',
-      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(days),
-    });
-    const keepDays = days.map((d) => d.day).join(',');
-    await rest(
-      `app_calendar_days?kind=eq.chol_hamoed&day=gte.${from.toISOString().slice(0, 10)}&day=not.in.(${keepDays})`,
-      { method: 'DELETE', headers: { Prefer: 'return=minimal' } },
-    );
-    console.log(`chol hamoed: ${days.length} days`);
+    for (const part of chunks(days)) {
+      await rest('app_calendar_days?on_conflict=day', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify(part),
+      });
+    }
+    const keepDays = new Set(days.map((d) => d.day));
+    const existing = await rest(`app_calendar_days?select=day&kind=eq.chol_hamoed&day=gte.${from.toISOString().slice(0, 10)}`);
+    const stale = existing.map((r) => r.day).filter((d) => !keepDays.has(d));
+    for (const part of chunks(stale)) {
+      await rest(`app_calendar_days?kind=eq.chol_hamoed&day=in.(${part.join(',')})`, {
+        method: 'DELETE',
+        headers: { Prefer: 'return=minimal' },
+      });
+    }
+    console.log(`chol hamoed: ${days.length} days, ${days[0].day} → ${days[days.length - 1].day}`);
   }
 
   if (!DRY) {

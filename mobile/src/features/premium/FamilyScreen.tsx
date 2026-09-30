@@ -7,6 +7,7 @@ import { Button, Card, EmptyState, ErrorState, Icon, IconButton, Loading, T, Tex
 import { ConfirmSheet, SettingsPage } from '@/features/settings/components';
 import { formatPhone } from '@/features/settings/hooks';
 import { ApiError } from '@/lib/api';
+import { useAppConfig } from '@/lib/config';
 import { useStrings } from '@/lib/i18n';
 import { useMe } from '@/lib/queries';
 import type { Me } from '@/lib/types';
@@ -15,8 +16,6 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space } from '@/theme/tokens';
 import { useFamilyInvite, useFamilyMembers, useFamilyRemove, type FamilyMember } from './queries';
 import { FAMILY_S } from './strings';
-
-const MAX_MEMBERS = 4; // plus the owner = 5
 
 /** Loose client check; the server normalizes and validates (app_normalize_phone). */
 function looksLikePhone(p: string) {
@@ -93,6 +92,8 @@ const MemberRow = memo(function MemberRow({
 function OwnerView({ me }: { me: Me }) {
   const { c } = useTheme();
   const s = useStrings(FAMILY_S);
+  // Members besides the owner; the server enforces the same limit (family_full).
+  const { family_max_members: maxMembers, website_url: site } = useAppConfig();
   const members = useFamilyMembers(me.profile.id);
   const invite = useFamilyInvite();
   const remove = useFamilyRemove();
@@ -104,7 +105,7 @@ function OwnerView({ me }: { me: Me }) {
   const [toRemove, setToRemove] = useState<FamilyMember | null>(null);
 
   const list = members.data ?? [];
-  const full = list.length >= MAX_MEMBERS;
+  const full = list.length >= maxMembers;
   const errName = name.trim().length < 2 ? s.errName : undefined;
   const errPhone = looksLikePhone(phone) ? undefined : s.errPhone;
 
@@ -135,7 +136,7 @@ function OwnerView({ me }: { me: Me }) {
   return (
     <>
       <T variant="body" color="inkMuted" style={{ fontSize: 16, lineHeight: 25 }}>
-        {s.ownerIntro}
+        {s.ownerIntro(maxMembers)}
       </T>
 
       <View style={{ gap: space[2] }}>
@@ -144,7 +145,7 @@ function OwnerView({ me }: { me: Me }) {
             {s.members}
           </T>
           <T variant="caption" color="inkMuted">
-            {s.count(1 + list.length)}
+            {s.count(1 + list.length, maxMembers)}
           </T>
         </View>
         <View style={{ backgroundColor: c.surfaceRaised, borderRadius: radius.lg, paddingHorizontal: space[4] }}>
@@ -175,7 +176,7 @@ function OwnerView({ me }: { me: Me }) {
                 m={m}
                 last={i === list.length - 1}
                 onRemove={setToRemove}
-                onWhatsapp={(x) => sendWhatsapp(x.member_phone, s.waText(x.member_name || ''))}
+                onWhatsapp={(x) => sendWhatsapp(x.member_phone, s.waText(x.member_name || '', site))}
               />
             ))
           )}
@@ -190,7 +191,7 @@ function OwnerView({ me }: { me: Me }) {
       {lastInvited ? (
         <Card tone="good" style={{ gap: space[3] }}>
           <T variant="label">{s.invitedOk(lastInvited.name)}</T>
-          <Button variant="whatsapp" icon={MessageCircle} onPress={() => sendWhatsapp(lastInvited.phone, s.waText(lastInvited.name))}>
+          <Button variant="whatsapp" icon={MessageCircle} onPress={() => sendWhatsapp(lastInvited.phone, s.waText(lastInvited.name, site))}>
             {s.sendWhatsapp}
           </Button>
         </Card>
@@ -254,6 +255,7 @@ function OwnerView({ me }: { me: Me }) {
 
 export function FamilyScreen() {
   const s = useStrings(FAMILY_S);
+  const maxMembers = useAppConfig().family_max_members;
   const { session, loading } = useSession();
   const me = useMe(!!session);
   const data = me.data;
@@ -265,7 +267,7 @@ export function FamilyScreen() {
     body = <EmptyState icon={Users} title={s.memberTitle} text={s.memberText} />;
   else
     body = (
-      <EmptyState icon={Users} title={s.otherTitle} text={s.otherText}>
+      <EmptyState icon={Users} title={s.otherTitle} text={s.otherText(maxMembers)}>
         <Button onPress={() => router.push('/premium')}>{s.toPremium}</Button>
       </EmptyState>
     );

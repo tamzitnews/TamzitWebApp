@@ -6,14 +6,13 @@ import { Linking, Platform, ScrollView, Share, useWindowDimensions, View } from 
 import { captureRef } from 'react-native-view-shot';
 
 import { AppBar, Button, EmptyState, IconButton, Screen, T, useIsRTL } from '@/components/ui';
+import { useAppConfig } from '@/lib/config';
 import { defineStrings, useStrings } from '@/lib/i18n';
 import { useItemStore } from '@/lib/itemStore';
 import type { FeedItem } from '@/lib/types';
 import { useTheme } from '@/theme/ThemeProvider';
 import { space } from '@/theme/tokens';
 import { ShareCard } from './ShareCard';
-
-const SITE = 'https://tamzit.org.il';
 
 const S = defineStrings({
   he: {
@@ -24,7 +23,7 @@ const S = defineStrings({
     note: 'בוואטסאפ הידיעה נשלחת ככרטיס תמונה. בדרך אחרת היא נשלחת כטקסט, עם קישור.',
     noteWeb: 'הידיעה נשלחת כטקסט, עם קישור לתמצית החדשות.',
     dialog: 'שיתוף ידיעה מתמצית החדשות',
-    message: (h: string, b: string) => `${h ? `${h}\n\n` : ''}${b}\n\nמתוך תמצית החדשות: חדשות בלי רעש ובלי סטרס\n${SITE}`,
+    message: (h: string, b: string, site: string) => `${h ? `${h}\n\n` : ''}${b}\n\nמתוך תמצית החדשות: חדשות בלי רעש ובלי סטרס\n${site}`,
     missing: 'הידיעה לא זמינה כרגע',
     missingText: 'חזרו למהדורה ונסו לשתף משם.',
     failed: 'השיתוף לא הצליח. נסו שוב.',
@@ -38,7 +37,7 @@ const S = defineStrings({
     note: 'On WhatsApp the item is sent as an image card. Other ways send it as text, with a link.',
     noteWeb: 'The item is sent as text, with a link to Tamzit News.',
     dialog: 'Share an item from Tamzit News',
-    message: (h: string, b: string) => `${h ? `${h}\n\n` : ''}${b}\n\nFrom Tamzit News: the news without the noise\n${SITE}`,
+    message: (h: string, b: string, site: string) => `${h ? `${h}\n\n` : ''}${b}\n\nFrom Tamzit News: the news without the noise\n${site}`,
     missing: 'This item is not available right now',
     missingText: 'Go back to the edition and share it from there.',
     failed: "Sharing didn't work. Please try again.",
@@ -52,7 +51,7 @@ const S = defineStrings({
     note: "Sur WhatsApp, l'article part sous forme d'image. Autrement, il part en texte, avec un lien.",
     noteWeb: "L'article est envoyé en texte, avec un lien vers Tamzit News.",
     dialog: 'Partager un article de Tamzit News',
-    message: (h: string, b: string) => `${h ? `${h}\n\n` : ''}${b}\n\nVia Tamzit News : l'actualité sans le bruit\n${SITE}`,
+    message: (h: string, b: string, site: string) => `${h ? `${h}\n\n` : ''}${b}\n\nVia Tamzit News : l'actualité sans le bruit\n${site}`,
     missing: "Cet article n'est pas disponible pour le moment",
     missingText: "Revenez à l'édition et partagez-le depuis là.",
     failed: "Le partage n'a pas fonctionné. Réessayez.",
@@ -77,6 +76,7 @@ export function ShareScreen({ itemId }: { itemId: string }) {
   const { c } = useTheme();
   const s = useStrings(S);
   const rtl = useIsRTL();
+  const site = useAppConfig().website_url;
   const item = useItemStore((st) => st.byId[itemId]) as FeedItem | undefined;
   const cardRef = useRef<View>(null);
   const { width } = useWindowDimensions();
@@ -100,7 +100,7 @@ export function ShareScreen({ itemId }: { itemId: string }) {
     );
   }
 
-  const message = s.message(item.headline, item.body);
+  const message = s.message(item.headline, item.body, site);
 
   const shareImage = async () => {
     if (!(await Sharing.isAvailableAsync())) throw new Error('sharing_unavailable');
@@ -139,7 +139,7 @@ export function ShareScreen({ itemId }: { itemId: string }) {
           setNote(s.copied);
         } else throw new Error('no_share');
       } else {
-        await Share.share({ message, title: item.headline, url: Platform.OS === 'ios' ? SITE : undefined }, { dialogTitle: s.dialog });
+        await Share.share({ message, title: item.headline, url: Platform.OS === 'ios' ? site : undefined }, { dialogTitle: s.dialog });
       }
     } catch (e) {
       if ((e as Error)?.name !== 'AbortError') setNote(s.failed);

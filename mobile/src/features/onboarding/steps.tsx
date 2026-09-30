@@ -9,6 +9,7 @@ import { View } from 'react-native';
 import { Button, T } from '@/components/ui';
 import { CommunityPicker, LanguagePicker, LevelPicker, RhythmPicker, StylePicker, TopicPicker, TrackPicker } from '@/features/prefs/pickers';
 import { api } from '@/lib/api';
+import { useAppConfig } from '@/lib/config';
 import { defineStrings, useStrings } from '@/lib/i18n';
 import { qk, useCommunities, useTopics } from '@/lib/queries';
 import { supabase } from '@/lib/supabase';
@@ -25,7 +26,7 @@ const S = defineStrings({
     languageTitle: 'באיזו שפה תרצו לקרוא?',
     languageSub: 'המהדורות נכתבות בשלוש שפות. אפשר לשנות בכל עת.',
     trackTitle: 'למי המהדורה?',
-    trackSub: 'במסלול הנוער הידיעות נכתבות במיוחד לגילאי 10–15. אפשר לשנות בכל עת.',
+    trackSub: (ages: string) => `במסלול הנוער הידיעות נכתבות במיוחד לגילאי \u2066${ages}\u2069. אפשר לשנות בכל עת.`,
     topicsTitle: 'על מה תרצו להתעדכן?',
     topicsSub: 'בחרו כמה שתרצו. ידיעות קריטיות מגיעות תמיד, מכל נושא.',
     topicsNone: 'בחרו לפחות נושא אחד.',
@@ -44,7 +45,7 @@ const S = defineStrings({
     languageTitle: 'Which language would you like to read in?',
     languageSub: 'Editions are written in three languages. You can change this at any time.',
     trackTitle: 'Who is the edition for?',
-    trackSub: 'On the youth track, news is written especially for ages 10–15. You can change this at any time.',
+    trackSub: (ages: string) => `On the youth track, news is written especially for ages ${ages}. You can change this at any time.`,
     topicsTitle: 'What would you like to follow?',
     topicsSub: 'Choose as many as you like. Critical news always comes through, from any topic.',
     topicsNone: 'Choose at least one topic.',
@@ -63,7 +64,7 @@ const S = defineStrings({
     languageTitle: 'Dans quelle langue souhaitez-vous lire ?',
     languageSub: 'Les éditions sont rédigées en trois langues. Vous pourrez changer à tout moment.',
     trackTitle: 'À qui s’adresse l’édition ?',
-    trackSub: 'Dans le parcours jeunes, les nouvelles sont écrites pour les 10–15 ans. Vous pourrez changer à tout moment.',
+    trackSub: (ages: string) => `Dans le parcours jeunes, les nouvelles sont écrites pour les ${ages} ans. Vous pourrez changer à tout moment.`,
     topicsTitle: 'Quels sujets vous intéressent ?',
     topicsSub: 'Choisissez-en autant que vous voulez. Les nouvelles critiques arrivent toujours, quel que soit le sujet.',
     topicsNone: 'Choisissez au moins un sujet.',
@@ -149,10 +150,11 @@ export function LanguageStep() {
 export function TrackStep() {
   const s = useStrings(S);
   const { at, of, next, back } = useStep('track');
+  const ages = useAppConfig().youth_age_range;
   const audience = usePrefs((p) => p.audience);
   const setPrefs = usePrefs((p) => p.set);
   return (
-    <OnboardingFrame at={at} of={of} onBack={back} title={s.trackTitle} subtitle={s.trackSub} cta={<Button block size="lg" onPress={next}>{s.next}</Button>}>
+    <OnboardingFrame at={at} of={of} onBack={back} title={s.trackTitle} subtitle={s.trackSub(ages)} cta={<Button block size="lg" onPress={next}>{s.next}</Button>}>
       <TrackPicker value={audience} onChange={(v) => setPrefs({ audience: v })} />
     </OnboardingFrame>
   );

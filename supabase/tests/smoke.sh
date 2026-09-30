@@ -106,7 +106,7 @@ echo "== anon access (before registration)"
 s=$(get "$ANON" "app_topics?select=id,is_default");   check "anon reads app_topics (14, 7 default)" "s==200 and len(d)==14 and sum(t['is_default'] for t in d)==7" "$TMP/out" "$s"
 s=$(get "$ANON" "app_cities?select=id&in_israel=eq.false"); check "anon reads app_cities (diaspora)" "s==200 and len(d)>=5" "$TMP/out" "$s"
 s=$(get "$ANON" "app_communities?select=id");          check "anon reads app_communities" "s==200 and len(d)==5" "$TMP/out" "$s"
-s=$(get "$ANON" "app_settings?select=key");            check "anon reads only public settings" "s==200 and sorted(r['key'] for r in d)==['donation_url','free_archive_days','max_items','support_email']" "$TMP/out" "$s"
+s=$(get "$ANON" "app_settings?select=key,is_public,is_secret"); check "anon reads only public settings (never secrets / demo)" "s==200 and len(d)>=10 and all(r['is_public'] and not r['is_secret'] for r in d) and {'donation_url','free_archive_days','support_email','website_url','otp_resend_seconds'} <= {r['key'] for r in d} and not {'push_webhook_secret','demo_code','functions_base_url','edition_schedule'} & {r['key'] for r in d}" "$TMP/out" "$s"
 s=$(get "$ANON" "tamzit_editions?select=id&limit=1");  check "anon cannot read tamzit_editions" "s in (401,403) or d==[]" "$TMP/out" "$s"
 s=$(get "$ANON" "user_preferences?select=user_id&limit=1"); check "anon cannot read user_preferences" "s in (401,403) or d==[]" "$TMP/out" "$s"
 s=$(rpc "$ANON" app_me);                               check "anon cannot call app_me" "s in (401,403,404)" "$TMP/out" "$s"
@@ -216,6 +216,20 @@ select coalesce(json_agg(json_build_object(
 from latest l;
 SQLEND
   check "every language/type parses into items, good news and no promo" "len(d[0]['r'])>=6 and all(e['junk']==0 and (e['n']>=1 if e['type']=='special_update' else (e['n']>=3 and e['good']==1 and e['title'])) for e in d[0]['r'])" "$TMP/out" 200
+
+  echo "== settings catalog"
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+select json_build_object(
+  'rows', (select count(*) from public.app_settings),
+  'undocumented', (select coalesce(json_agg(key), '[]') from public.app_settings
+                   where title is null or description !~ 'מה זה:' or description !~ 'איפה זה ממומש:' or value_type is null),
+  'no_default', (select coalesce(json_agg(key), '[]') from public.app_settings where default_value is null and value_type <> 'url' and not is_secret)) as r;
+SQLEND
+  check "every setting has a title, an explanation (what / where) and a type" "d[0]['r']['rows']>=50 and d[0]['r']['undocumented']==[] and d[0]['r']['no_default']==[]" "$TMP/out" 200
+  echo "update public.app_settings set value = '\"abc\"' where key = 'max_items'" | "$SQL" - > "$TMP/raw" 2>&1
+  if grep -q 'לא תקין' "$TMP/raw"; then ok "a value of the wrong type is refused (Hebrew message)"; else bad "a value of the wrong type is refused" "$(cat "$TMP/raw")"; fi
+  echo "select public.app_setting_int('no_such_key', 42) as a, public.app_setting_int('max_items', 0) as b, public.app_regex_any(array['a.b','x|y']) as c" | "$SQL" - > "$TMP/out"
+  check "setting readers: default for a missing key, value otherwise, regex escaping" "d[0]['a']==42 and d[0]['b']>=1 and d[0]['c']=='(a\\\\.b|x\\\\|y)'" "$TMP/out" 200
 
   echo "== push trigger (on a temporary copy of tamzit_editions: nothing is written to the engine's table)"
   echo "select json_build_object('trigger', (select tgenabled from pg_trigger where tgname = 'app_tamzit_editions_push' and tgrelid = 'public.tamzit_editions'::regclass)) as r" | "$SQL" - > "$TMP/out"

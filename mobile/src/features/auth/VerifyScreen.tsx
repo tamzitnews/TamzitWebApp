@@ -9,6 +9,7 @@ import { AppBar, Button, Screen, T } from '@/components/ui';
 import { useOnboardingProgress } from '@/features/onboarding/progress';
 import { backOr, CtaArea, Heading, KeyboardAware } from '@/features/onboarding/layout';
 import { api, auth } from '@/lib/api';
+import { useAppConfig } from '@/lib/config';
 import { defineStrings, useStrings } from '@/lib/i18n';
 import { qk } from '@/lib/queries';
 import type { Me } from '@/lib/types';
@@ -19,7 +20,6 @@ import { AUTH_ERRORS, authErrorCode, type AuthErrorCode } from './errors';
 import { FormError } from './FormError';
 import { usePendingAuth } from './pending';
 
-const RESEND_SECONDS = 60;
 const CODE_LENGTH = 6;
 
 const S = defineStrings({
@@ -74,6 +74,8 @@ export function VerifyScreen() {
   const errors = useStrings(AUTH_ERRORS);
   const { c } = useTheme();
   const qc = useQueryClient();
+  // app_settings is public, so this works before sign-in too.
+  const resendSeconds = useAppConfig().otp_resend_seconds;
   const params = useLocalSearchParams<{ phone?: string; masked_email?: string; mode?: string; name?: string }>();
   const phone = params.phone ?? '';
   const mode = params.mode === 'register' ? 'register' : 'login';
@@ -95,11 +97,11 @@ export function VerifyScreen() {
     const id = setInterval(() => {
       const t = Date.now();
       setNow(t);
-      if (t - sentAt >= RESEND_SECONDS * 1000) clearInterval(id);
+      if (t - sentAt >= resendSeconds * 1000) clearInterval(id);
     }, 1000);
     return () => clearInterval(id);
-  }, [sentAt]);
-  const left = Math.max(0, RESEND_SECONDS - Math.floor((now - sentAt) / 1000));
+  }, [sentAt, resendSeconds]);
+  const left = Math.max(0, resendSeconds - Math.floor((now - sentAt) / 1000));
 
   /** After the session exists: save the onboarding choices when needed, then leave. */
   const finish = async () => {

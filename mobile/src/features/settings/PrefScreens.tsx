@@ -13,6 +13,7 @@ import {
   TrackPicker,
 } from '@/features/prefs/pickers';
 import { api } from '@/lib/api';
+import { useAppConfig } from '@/lib/config';
 import { useStrings } from '@/lib/i18n';
 import { qk } from '@/lib/queries';
 import type { Audience, Language, LevelFilter, Me, Style } from '@/lib/types';
@@ -89,10 +90,11 @@ export function LanguageSettings() {
 
 function TrackInner({ initial }: { initial: ProfileValues }) {
   const s = useStrings(SETTINGS_S);
+  const ages = useAppConfig().youth_age_range;
   const { save, state } = useSaveProfile();
   const [value, setValue] = useState<Audience>(initial.audience);
   return (
-    <SettingsPage title={s.track} note={s.trackNote} footer={<Footer state={state} />}>
+    <SettingsPage title={s.track} note={s.trackNote(ages)} footer={<Footer state={state} />}>
       <TrackPicker
         value={value}
         onChange={(v) => {

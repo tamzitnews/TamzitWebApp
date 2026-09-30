@@ -3,6 +3,10 @@ import { defineStrings } from '@/lib/i18n';
 const heCount = (n: number) => (n === 1 ? 'ידיעה אחת' : `${n} ידיעות`);
 const enCount = (n: number) => (n === 1 ? '1 item' : `${n} items`);
 const frCount = (n: number) => (n === 1 ? '1 article' : `${n} articles`);
+// The free archive span (app setting free_archive_days) in words: a week for 7, a day for 1, else n days.
+const heSpan = (n: number) => (n === 7 ? 'משבוע' : n === 1 ? 'מיום' : `מ־${n} ימים`);
+const enSpan = (n: number) => (n === 7 ? 'a week' : n === 1 ? 'a day' : `${n} days`);
+const frSpan = (n: number) => (n === 7 ? "d'une semaine" : n === 1 ? "d'un jour" : `de ${n} jours`);
 
 export const S = defineStrings({
   he: {
@@ -27,7 +31,7 @@ export const S = defineStrings({
     offline: 'אין חיבור. מוצגת המהדורה האחרונה ששמרנו.',
     loadError: 'לא הצלחנו לטעון את המהדורה.',
     retry: 'נסו שוב',
-    lockedTitle: 'מהדורות מלפני יותר משבוע זמינות בפרימיום',
+    lockedTitle: (n: number) => (n === 0 ? 'מהדורות קודמות זמינות בפרימיום' : `מהדורות מלפני יותר ${heSpan(n)} זמינות בפרימיום`),
     lockedText: 'בפרימיום כל הארכיון פתוח, עם חיפוש ובלי פרסומות.',
     lockedCta: 'לפרטים',
     notFound: 'המהדורה לא נמצאה',
@@ -55,7 +59,7 @@ export const S = defineStrings({
     offline: 'No connection. Showing the last edition we saved.',
     loadError: "We couldn't load the edition.",
     retry: 'Try again',
-    lockedTitle: 'Editions older than a week are available with Premium',
+    lockedTitle: (n: number) => (n === 0 ? 'Past editions are available with Premium' : `Editions older than ${enSpan(n)} are available with Premium`),
     lockedText: 'Premium opens the full archive, with search and no ads.',
     lockedCta: 'Learn more',
     notFound: 'Edition not found',
@@ -83,7 +87,8 @@ export const S = defineStrings({
     offline: 'Pas de connexion. Voici la dernière édition enregistrée.',
     loadError: "Impossible de charger l'édition.",
     retry: 'Réessayer',
-    lockedTitle: "Les éditions de plus d'une semaine sont disponibles avec Premium",
+    lockedTitle: (n: number) =>
+      n === 0 ? 'Les éditions passées sont disponibles avec Premium' : `Les éditions de plus ${frSpan(n)} sont disponibles avec Premium`,
     lockedText: "Premium ouvre toutes les archives, avec la recherche et sans publicité.",
     lockedCta: 'En savoir plus',
     notFound: 'Édition introuvable',

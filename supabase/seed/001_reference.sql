@@ -114,4 +114,6 @@ insert into public.app_settings (key, value) values
   ('demo_premium_email',  '"demo-premium@tamzit-app.test"'),
   ('demo_family_phone',   '"+972500000002"'),
   ('demo_family_email',   '"demo-family@tamzit-app.test"')
-on conflict (key) do update set value = excluded.value;
+-- first setup only: a value changed later (table editor) is never overwritten; the explanations of every
+-- parameter are in migration 0015 (app_settings catalog)
+on conflict (key) do nothing;
