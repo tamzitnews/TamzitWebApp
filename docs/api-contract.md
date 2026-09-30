@@ -326,7 +326,8 @@ type Feed = {
     inactive until the `FCM_SERVICE_ACCOUNT` secret exists (and the app is built with `google-services.json`). The secret
     is the whole service account JSON (`client_email`, `project_id`, `private_key`); a failure answers
     `{ error: 'server_error', stage }` to callers holding the app secret (`fcm_service_account` adds the secret's shape,
-    never its values).
+    never its values). `{ action: 'test', body, title? }` (same secret) sends a test message to every registered device
+    and answers the counts (`fcm_ok`, `fcm_invalid`, `fcm_error`, `expo_sent`).
   - The app no longer schedules local notifications at the reader's times.
 
 ## Rest periods (Shabbat / Yom Tov times)

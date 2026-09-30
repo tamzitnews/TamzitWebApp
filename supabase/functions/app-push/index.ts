@@ -1,4 +1,4 @@
-// POST /functions/v1/app-push   { edition_id }
+// POST /functions/v1/app-push   { edition_id }   (or { action: 'test', body, title? }: a test message to every device)
 // Called by the trigger app_tamzit_editions_push (pg_net) once per published edition: one call per distinct special
 // update, and one per regular edition (language, track, slot, day; the engine inserts each edition several times).
 // Header x-app-secret must equal app_settings.push_webhook_secret.
@@ -194,6 +194,8 @@ async function sendFcm(
 
 // --- Expo push ----------------------------------------------------------------
 
+const isExpoToken = (token: string) => token.startsWith('ExponentPushToken[') || token.startsWith('ExpoPushToken[');
+
 async function sendExpo(
   messages: { to: string; title: string; body: string; data: Record<string, string> }[],
   channelId: string,
@@ -266,6 +268,38 @@ Deno.serve(async (req) => {
     authorized = true;
 
     const body = await readBody(req);
+
+    // A test message to every registered device, for operators: { action: 'test', body, title? }.
+    if (body.action === 'test') {
+      stage = 'test';
+      const text = String(body.body ?? '').trim().slice(0, 300);
+      if (!text) return json({ error: 'missing_body' }, 400);
+      const title = String(body.title ?? '').trim().slice(0, 100) || 'תמצית החדשות';
+      const { data: devs, error: dErr } = await db.from('app_devices').select('push_token');
+      if (dErr) throw dErr;
+      const tokens = [...new Set((devs ?? []).map((d: { push_token: string }) => d.push_token).filter(Boolean))];
+      const data = { type: 'test', url: 'tamzit://' };
+      const counts: Record<string, number> = {};
+      const expo = tokens.filter(isExpoToken);
+      const native = tokens.filter((t) => !isExpoToken(t));
+      if (expo.length) counts.expo_sent = (await sendExpo(expo.map((to) => ({ to, title, body: text, data })), 'editions')).sent;
+      const saRaw = env('FCM_SERVICE_ACCOUNT');
+      if (native.length && !saRaw) counts.fcm_not_configured = native.length;
+      if (native.length && saRaw) {
+        stage = 'fcm_service_account';
+        const sa = parseServiceAccount(saRaw);
+        stage = 'fcm_oauth';
+        const accessToken = await fcmAccessToken(sa);
+        stage = 'fcm_send';
+        for (const t of native) {
+          const r = await sendFcm(sa.project_id, accessToken, t, title, text, data, 'editions');
+          counts[`fcm_${r}`] = (counts[`fcm_${r}`] ?? 0) + 1;
+        }
+      }
+      console.log('app-push test', { devices: tokens.length, ...counts });
+      return json({ ok: true, devices: tokens.length, ...counts });
+    }
+
     const editionId = Number(body.edition_id);
     if (!Number.isSafeInteger(editionId)) return json({ error: 'missing_edition_id' }, 400);
 
@@ -288,7 +322,7 @@ Deno.serve(async (req) => {
     const targets = special ? await specialTargets(db, language) : await editionTargets(db, editionId);
     const channelId = special ? 'special' : 'editions';
     const saRaw = env('FCM_SERVICE_ACCOUNT');
-    const isExpo = (t: Target) => t.token.startsWith('ExponentPushToken[') || t.token.startsWith('ExpoPushToken[');
+    const isExpo = (t: Target) => isExpoToken(t.token);
     const expoTargets = targets.filter(isExpo);
     const fcmTargets = targets.filter((t) => !isExpo(t));
     if (!saRaw && fcmTargets.length) console.log(`app-push: FCM_SERVICE_ACCOUNT missing; ${fcmTargets.length} native tokens skipped`);
