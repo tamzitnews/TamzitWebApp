@@ -201,7 +201,9 @@ type Feed = {
   edition_types: string[];                          // editions included (contract types), newest first
   title: string | null;                             // edition title when the feed has one edition
   items: FeedItem[];                                // kind='news', filtered, ordered: level desc, published desc, position
-  special: FeedItem[];                              // items of special updates in the window (often [])
+  special: FeedItem[];                              // items of special updates in the window (often []); the app shows
+                                                    // those published after the edition's items on top, and those
+                                                    // published before them after the edition (under a heading)
   community: FeedItem[];                            // kind='community' for the user's communities (often [])
   good_news: FeedItem | null;                       // latest good-news item in the window
   ad: { id: string; label: string; sponsor: string | null; body: string; link_url: string | null; image_url: string | null } | null;  // null for premium
@@ -229,7 +231,8 @@ type Feed = {
 - `app_personal_edition(p_from timestamptz default null, p_to timestamptz default null) → Feed`.
   - **No arguments (what the app calls): the reader's newest edition** — the newest edition the reader gets
     (`app_reader_own_editions`, below) within 8 days, plus the special updates since the edition before it; with
-    `edition_id` and `next_edition`.
+    `edition_id` and `next_edition`. So a special update sent before the newest edition shows after it (the app places
+    it there) and is gone once the next edition arrives.
   - With a window (older app builds): the reader's editions (language + track) with `published_at` in `(p_from, p_to]`
     (defaults: the last 24 hours). Raises `archive_locked` if `p_from < now() - free_archive_days` (10 minutes grace) and
     not premium.

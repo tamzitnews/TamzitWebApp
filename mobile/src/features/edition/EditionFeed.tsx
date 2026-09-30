@@ -1,6 +1,7 @@
 // Renders one Feed (personal edition or an archived engine edition) as a virtualized list:
-// header → notices to readers → special updates → news under section / sub-section headings, with the ad after the first
-// section (or the empty-level note) → community → good news → end.
+// header → notices to readers → special updates sent after the edition → news under section / sub-section headings,
+// with the ad after the first section (or the empty-level note) → community → good news → special updates sent before
+// the edition (since the previous one; the next edition drops them) → end.
 import { useQueryClient } from '@tanstack/react-query';
 import { memo, useCallback, useEffect, useMemo, useRef, type ReactElement } from 'react';
 import { FlatList, Platform, RefreshControl, View, type ListRenderItem, type ViewToken } from 'react-native';
@@ -84,11 +85,23 @@ function pushNews(rows: Row[], items: FeedItem[], ad: Ad | null) {
   placeAd();
 }
 
-function buildRows(feed: Feed): Row[] {
+/**
+ * Special updates sent after the edition lead it; those sent before it (the edition already covers them) follow it.
+ * A feed of special updates only keeps them all on top.
+ */
+function splitSpecials(feed: Feed): { fresh: FeedItem[]; earlier: FeedItem[] } {
+  if (feed.items.length === 0) return { fresh: feed.special, earlier: [] };
+  const editionAt = Date.parse(editionPublishedAt(feed));
+  const earlier = feed.special.filter((it) => Date.parse(it.published_at) < editionAt);
+  return { fresh: feed.special.filter((it) => !earlier.includes(it)), earlier };
+}
+
+function buildRows(feed: Feed, earlierTitle: string): Row[] {
   const rows: Row[] = [{ key: 'header', type: 'header' }];
   const notices = (feed.notices ?? []).filter((n) => n.trim());
   if (notices.length) rows.push({ key: 'notices', type: 'notices', notices });
-  for (const it of feed.special) rows.push({ key: `s:${it.id}`, type: 'special', item: it });
+  const { fresh, earlier } = splitSpecials(feed);
+  for (const it of fresh) rows.push({ key: `s:${it.id}`, type: 'special', item: it });
   if (feed.items.length === 0 && feed.special.length === 0) rows.push({ key: 'empty', type: 'empty' });
   pushNews(rows, feed.items, feed.ad);
   let group: string | null = null;
@@ -101,6 +114,10 @@ function buildRows(feed: Feed): Row[] {
     rows.push({ key: `c:${it.id}`, type: 'item', item: it, last: false, showTopic: true });
   });
   if (feed.good_news) rows.push({ key: `g:${feed.good_news.id}`, type: 'good', item: feed.good_news });
+  if (earlier.length) {
+    rows.push({ key: 'sec:earlier', type: 'section', title: earlierTitle, afterHeader: false });
+    for (const it of earlier) rows.push({ key: `s:${it.id}`, type: 'special', item: it });
+  }
   rows.push({ key: 'end', type: 'end' });
   // An item closes its group (no bottom rule) when a heading, the ad or a closing section follows,
   // so every group reads as one block.
@@ -175,7 +192,7 @@ export function EditionFeed({
   }, [player, track, offer]);
   const onListen = useMemo(() => (track ? () => void play(track).catch(() => {}) : undefined), [track, play]);
 
-  const rows = useMemo(() => buildRows(feed), [feed]);
+  const rows = useMemo(() => buildRows(feed, s.earlierSpecials), [feed, s.earlierSpecials]);
   // The motzash edition sums up a whole Shabbat: item times would only add noise.
   const showTime = type !== 'motzash';
   const date = editionDate(editionPublishedAt(feed), lang);
