@@ -63,7 +63,7 @@ edition_type 'classic'|'daily'|'special_update'|'teens', time_slot 'בוקר'|'�
 
 | app | from |
 | --- | --- |
-| edition id | `id` (as a string); the engine inserts every edition several times (one row per WhatsApp group): identical texts of the same slot and day collapse to the first row, and when a slot was re-sent with a different text the newest text wins (special updates keep each distinct text) |
+| edition id | `id` (as a string); the engine inserts every edition several times (one row per WhatsApp group): identical texts of the same slot and day collapse to the first row, and when a slot was re-sent with a different text the newest text wins (special updates keep each distinct text). An edition the engine sent on WhatsApp without logging it is written once from the sent text (`app_ingest_edition`, migration 0024; listed in `app_whapi_editions`) |
 | published_at | `created_at` of that first row |
 | language | `hebrew`/`english`/`french` → `he`/`en`/`fr` |
 | audience | `edition_type = 'teens'` → `youth`, else `general` |
@@ -320,7 +320,10 @@ type Feed = {
     `{ type: 'edition', url: 'tamzit://' }`.
   - Never to readers whose `shabbat_city_id` is inside an `app_rest_periods` period right now; the text is the first item
     only when `headline_in_push` is on. Expo tokens go through the Expo push service; native FCM tokens through FCM HTTP v1,
-    inactive until the `FCM_SERVICE_ACCOUNT` secret exists (and the app is built with `google-services.json`).
+    inactive until the `FCM_SERVICE_ACCOUNT` secret exists (and the app is built with `google-services.json`). The secret
+    is the whole service account JSON (`client_email`, `project_id`, `private_key`); a failure answers
+    `{ error: 'server_error', stage }` to callers holding the app secret (`fcm_service_account` adds the secret's shape,
+    never its values).
   - The app no longer schedules local notifications at the reader's times.
 
 ## Rest periods (Shabbat / Yom Tov times)

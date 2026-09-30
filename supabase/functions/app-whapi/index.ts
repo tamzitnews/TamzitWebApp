@@ -1,13 +1,14 @@
 // POST /functions/v1/app-whapi
 //  - Whapi's webhook (event messages.post of each sending number; header x-whapi-secret = app_settings.whapi_webhook_secret):
-//    every message the service sends → _shared/whapi.ts handleAll: special updates into tamzit_editions (they then
-//    push, show in the app and are classified), ad images. Always 200 so that Whapi does not retry.
+//    every message the service sends → _shared/whapi.ts handleAll: special updates, and editions the engine did not
+//    log, into tamzit_editions (they then push, show in the app and are classified), ads and their images. Always 200
+//    so that Whapi does not retry.
 //  - Operations (header x-app-secret = app_settings.push_webhook_secret), body { action }:
 //      status    each number: channel health and its webhooks (URL, events; header names only, never values)
 //      connect   adds this function to each number's webhooks (keeps the existing ones) with the secret header, and
 //                saves the channels the numbers administer in app_settings.whapi_channel_ids
 //      backfill  { hours } handles what the numbers sent and what was posted in those channels in the last hours
-//      channels / inspect   read-only views of the channels and of what was sent (for checks)
+//      channels / inspect   read-only views of the channels and of what was sent (for checks; `full` → whole texts)
 // Needs the WHAPI_TOKEN secret.
 import { adminClient, corsHeaders, env, getSettings, json, readBody, settingText } from '../_shared/app-common.ts';
 import { handleAll, listSent, messageText, ourChannels, whapi, whapiTokens, type WhapiMessage } from '../_shared/whapi.ts';
@@ -121,9 +122,12 @@ Deno.serve(async (req) => {
             const msgs = (mr.ok ? ((await mr.json()).messages ?? []) : []) as WhapiMessage[];
             entry.messages = msgs.length;
             entry.from_me = msgs.filter((m) => m.from_me).length;
-            entry.matches = msgs.filter((m) => !q || messageText(m).includes(q)).slice(0, 10).map((m) => ({
-              type: m.type, from_me: m.from_me, at: new Date((m.timestamp ?? 0) * 1000).toISOString(), text: messageText(m).slice(0, 120),
-            }));
+            // newest first; `full` gives the whole text
+            entry.matches = msgs.filter((m) => !q || messageText(m).includes(q))
+              .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0)).slice(0, 10).map((m) => ({
+                id: m.id, type: m.type, from_me: m.from_me, at: new Date((m.timestamp ?? 0) * 1000).toISOString(),
+                text: messageText(m).slice(0, body.full ? 8000 : 120),
+              }));
           }
           out.push(entry);
         }
@@ -142,7 +146,9 @@ Deno.serve(async (req) => {
           const kind = (m.chat_id ?? '').split('@')[1] ?? 'unknown';
           counts[`${kind}/${m.type}`] = (counts[`${kind}/${m.type}`] ?? 0) + 1;
           const t = messageText(m);
-          if (q && t.includes(q)) matches.push({ kind, type: m.type, at: new Date((m.timestamp ?? 0) * 1000).toISOString(), text: t.slice(0, 160) });
+          if (q && t.includes(q)) {
+            matches.push({ kind, type: m.type, at: new Date((m.timestamp ?? 0) * 1000).toISOString(), text: t.slice(0, body.full ? 8000 : 160) });
+          }
         }
       }
       return json({ ok: true, hours, counts, matches: matches.slice(0, 20) });

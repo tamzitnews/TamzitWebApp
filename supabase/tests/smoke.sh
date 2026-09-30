@@ -313,6 +313,30 @@ select json_build_object(
 rollback;
 SQLEND
   check "a special update sent on WhatsApp is written once, as the engine wrote them (rolled back; too old to push)" "d[0]['r']['first'] and d[0]['r']['second'] is None and d[0]['r']['edition'] is False and d[0]['r']['row']=={'type':'special_update','slot':'עדכון מיוחד','lang':'hebrew'} and d[0]['r']['pushed']==0" "$TMP/out" 200
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+begin;
+create temp table k as select
+  (select row_to_json(x) from public.app_edition_of_text(E'📻 *תמצית החדשות*\n*מהדורת ערב, יום רביעי*, 30 בספטמבר') x) as he_evening,
+  (select row_to_json(x) from public.app_edition_of_text(E'*קוראים יקרים,*\n*המהדורה הבאה תישלח במוצאי שבת.*\n\n•   •   •\n\n📻 *תמצית החדשות*\n*מהדורת צוהריים, יום שישי*') x) as he_friday,
+  (select row_to_json(x) from public.app_edition_of_text(E'📻 *תמצית החדשות*\n*המהדורה היומית, י״ח בתשרי*') x) as he_daily,
+  (select row_to_json(x) from public.app_edition_of_text(E'📻 *Israel News Highlights*\n*Morning Edition: Wednesday*') x) as en_morning,
+  (select row_to_json(x) from public.app_edition_of_text(E'📻 *L''essentiel de l''actualité*\n*Édition du soir: samedi*') x) as fr_evening,
+  (select (x).language from public.app_edition_of_text(E'📻 *עדכון מיוחד*\n\nבדיקה') x) as special_lang;
+create temp table e1 as select public.app_ingest_sent(E'📻 *תמצית החדשות*\n*מהדורת ערב, יום שישי, בדיקת עשן*, 1 בינואר 1999\n\n•   •   •\n\n📌 *_בדיקה:_*\n• ידיעה ראשונה של בדיקת העשן, שנשלחה בוואטסאפ ולא נרשמה על ידי המנוע, כדי לוודא שהיא נקלטת פעם אחת בלבד ובשפה הנכונה.\n\n• ידיעה שנייה של בדיקת העשן, שנשלחה באותה הודעה, כדי שהטקסט יהיה באורך של מהדורה אמיתית ולא של הודעה קצרה.\n\n•   •   •\n\nכתיבה: בדיקה.', '1999-01-01 16:00+00', 'smoke') as j;
+create temp table e2 as select public.app_ingest_sent((select main_text from public.tamzit_editions where id = ((select j from e1) ->> 'id')::bigint), '1999-01-01 16:10+00') as j;
+create temp table a1 as select public.app_ingest_sent(E'> המהדורה בחסות:\n\n*בדיקת עשן* - מודעת חסות לבדיקה בלבד.\nhttps://example.org/smoke', '1999-01-01 16:02+00') as j;
+create temp table a2 as select public.app_ingest_sent(E'> המהדורה בחסות:\n\n*בדיקת עשן* - מודעת חסות לבדיקה בלבד.\nhttps://example.org/smoke', '1999-01-01 16:03+00') as j;
+create temp table n1 as select public.app_ingest_sent(E'*קוראים יקרים,*\nהמהדורה הבאה תישלח מחר.', '1999-01-01 16:04+00') as j;
+select json_build_object('k', (select row_to_json(k) from k),
+  'e1', (select j from e1), 'e2', (select j from e2), 'a1', (select j from a1), 'a2', (select j from a2), 'n1', (select j from n1),
+  'row', (select json_build_object('lang', language, 'type', edition_type, 'slot', time_slot, 'date', edition_date) from public.tamzit_editions where id = ((select j from e1) ->> 'id')::bigint),
+  'from_whapi', (select count(*) from public.app_whapi_editions where edition_id = ((select j from e1) ->> 'id')::bigint),
+  'ad_edition', (select edition_id from public.tamzit_edition_elements where id = ((select j from a1) ->> 'id')::bigint) = ((select j from e1) ->> 'id')::bigint,
+  'pushed', (select count(*) from public.app_push_log where edition_id = ((select j from e1) ->> 'id')::bigint)) as r;
+rollback;
+SQLEND
+  check "edition headers are read as the engine names them (Friday notice first, daily, English, French)" "d[0]['r']['k']['he_evening']=={'language':'hebrew','edition_type':'classic','time_slot':'ערב'} and d[0]['r']['k']['he_friday']=={'language':'hebrew','edition_type':'classic','time_slot':'צהריים'} and d[0]['r']['k']['he_daily']['edition_type']=='daily' and d[0]['r']['k']['en_morning']=={'language':'english','edition_type':'classic','time_slot':'בוקר'} and d[0]['r']['k']['fr_evening']['language']=='french' and d[0]['r']['k']['special_lang'] is None" "$TMP/out" 200
+  check "an edition sent on WhatsApp that the engine did not log is written once, with its sponsor ad (rolled back; too old to push)" "d[0]['r']['e1']['kind']=='edition' and d[0]['r']['e1']['id'] and d[0]['r']['e2']['id'] is None and d[0]['r']['row']=={'lang':'hebrew','type':'classic','slot':'ערב','date':'1999-01-01'} and d[0]['r']['from_whapi']==1 and d[0]['r']['a1']['id'] and d[0]['r']['a2']['id'] is None and d[0]['r']['ad_edition'] is True and d[0]['r']['n1']=={} and d[0]['r']['pushed']==0" "$TMP/out" 200
   echo "select json_build_object('jobs', (select json_agg(jobname order by jobname) from cron.job where jobname like 'app-%')) as r" | "$SQL" - > "$TMP/out"
   check "no polling: the only app cron job is the hourly housekeeping check" "d[0]['r']['jobs']==['app-housekeeping']" "$TMP/out" 200
 

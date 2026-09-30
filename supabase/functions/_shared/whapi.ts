@@ -1,7 +1,11 @@
 // Whapi.Cloud (the service's WhatsApp numbers send through it): what the app takes from the messages sent.
-//  - a special update ("📻 *עדכון מיוחד*" …) → public.app_ingest_special: one tamzit_editions row per distinct text,
-//    as the engine used to write it (the engine stopped logging special updates on 2026-08-18);
+//  - a special update ("📻 *עדכון מיוחד*" …) → one tamzit_editions row per distinct text, as the engine used to write
+//    it (the engine stopped logging special updates on 2026-08-18);
+//  - a regular edition ("📻 *תמצית החדשות*" / "*מהדורת ערב, …*", English, French) the engine did not log → its
+//    tamzit_editions row, and its sponsor message ("> המהדורה בחסות: …") → its ad element (migration 0024; the
+//    engine sometimes sends an edition without logging it, e.g. the evening edition of 2026-09-30);
 //  - an image whose caption is an ad's text → the ad's image (app-media/whapi/<element>.<ext>, app_ad_images).
+// All three in SQL (public.app_ingest_sent), one call per message.
 // A message counts when a number sent it, or when it was posted in one of the service's WhatsApp channels
 // (app_settings.whapi_channel_ids; editors post special updates there from their own phones).
 // Used by app-whapi (Whapi's webhook, per message as it is sent) and app-media-sync (after an ad element is saved,
@@ -83,7 +87,16 @@ async function downloadImage(tokens: string[], img: WhapiMedia): Promise<{ bytes
   throw new Error(`download: ${last}`);
 }
 
-export type Outcome = 'special_saved' | 'special_known' | 'ad_image_saved' | 'ad_image_known' | 'other' | 'failed';
+export type Outcome =
+  | 'special_saved'
+  | 'special_known'
+  | 'edition_saved'
+  | 'edition_known'
+  | 'ad_saved'
+  | 'ad_image_saved'
+  | 'ad_image_known'
+  | 'other'
+  | 'failed';
 export type Scope = { channels: Set<string>; onlyAds?: Set<number> };
 
 /** The service's WhatsApp channels (app_settings.whapi_channel_ids). */
@@ -93,9 +106,10 @@ export async function ourChannels(db: SupabaseClient): Promise<Set<string>> {
 }
 
 /**
- * One message sent by a number or posted in one of the service's channels: a special update is written (once per
- * text); an image whose caption is an ad's text gives that ad its image. `scope.onlyAds`: consider only these ad
- * elements (app-media-sync's list of ads still without an image). Anything else returns at once, without a query.
+ * One message sent by a number or posted in one of the service's channels: a special update, or an edition the
+ * engine did not log, is written (once); a sponsor message of such an edition becomes its ad; an image whose caption
+ * is an ad's text gives that ad its image. `scope.onlyAds`: consider only these ad elements (app-media-sync's list
+ * of ads still without an image). Anything else returns at once, without a query.
  */
 export async function handleSent(db: SupabaseClient, m: WhapiMessage, supabaseUrl: string, scope: Scope): Promise<Outcome> {
   const onlyAds = scope.onlyAds;
@@ -103,15 +117,15 @@ export async function handleSent(db: SupabaseClient, m: WhapiMessage, supabaseUr
   const text = messageText(m);
   if (!text) return 'other';
   try {
+    let adSaved = false;
     if (!onlyAds) {
-      const { data: isSpecial } = await db.rpc('app_is_special_text', { p: text });
-      if (isSpecial) {
-        const { data: id, error } = await db.rpc('app_ingest_special', { p_text: text, p_at: whenOf(m) });
-        if (error) throw error;
-        return id ? 'special_saved' : 'special_known';
-      }
+      const { data: r, error } = await db.rpc('app_ingest_sent', { p_text: text, p_at: whenOf(m), p_message_id: m.id ?? null });
+      if (error) throw error;
+      if (r?.kind === 'special') return r.id ? 'special_saved' : 'special_known';
+      if (r?.kind === 'edition') return r.id ? 'edition_saved' : 'edition_known';
+      adSaved = r?.kind === 'ad' && !!r.id; // an image with it is the ad's image (below)
     }
-    if (m.type !== 'image' || !m.image) return 'other';
+    if (m.type !== 'image' || !m.image) return adSaved ? 'ad_saved' : 'other';
     const { data: elementId, error } = await db.rpc('app_ad_element_for_caption', { p_caption: text, p_at: whenOf(m) });
     if (error) throw error;
     if (!elementId || (onlyAds && !onlyAds.has(Number(elementId)))) return 'other';

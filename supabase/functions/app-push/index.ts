@@ -71,6 +71,67 @@ function b64url(data: Uint8Array | string): string {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+type ServiceAccount = { client_email: string; private_key: string; project_id: string };
+
+/** What the secret looks like, without any of its values (top-level key names only): for the operator. */
+function saShape(raw: string): Record<string, unknown> {
+  const t = raw.trim();
+  let keys: string[] | null = null;
+  try {
+    const v = JSON.parse(t);
+    keys = v && typeof v === 'object' ? Object.keys(v).slice(0, 20) : [typeof v];
+  } catch {
+    // not JSON
+  }
+  return {
+    length: t.length,
+    json: keys !== null,
+    keys,
+    starts_with_brace: t.startsWith('{'),
+    has_private_key_block: t.includes('BEGIN PRIVATE KEY'),
+    has_client_email: t.includes('client_email'),
+    looks_base64: /^[A-Za-z0-9+/=\s]+$/.test(t),
+    looks_base64url: /^[A-Za-z0-9_=-]+$/.test(t),
+    has_dashes: t.includes('-----'),
+    has_word_private: /private/i.test(t),
+    key_body: t.replace(/\\n|\s/g, '').startsWith('MII'),
+    literal_backslash_n: (t.match(/\\n/g) ?? []).length,
+    line_breaks: (t.match(/\n/g) ?? []).length,
+  };
+}
+class ShapeError extends Error {
+  constructor(readonly shape: Record<string, unknown>) {
+    super('FCM_SERVICE_ACCOUNT is not a service account JSON');
+  }
+}
+
+/** The FCM_SERVICE_ACCOUNT secret: the service account JSON as is, base64, JSON in a string, or pasted with real line
+ * breaks inside the key (not valid JSON; then its three fields are read directly). */
+function parseServiceAccount(raw: string): ServiceAccount {
+  const texts = [raw.trim()];
+  try {
+    texts.push(atob(raw.trim()));
+  } catch {
+    // not base64
+  }
+  for (const t of texts) {
+    try {
+      let v = JSON.parse(t);
+      if (typeof v === 'string') v = JSON.parse(v);
+      if (v?.client_email && v?.private_key && v?.project_id) return v as ServiceAccount;
+    } catch {
+      // next form
+    }
+  }
+  const text = texts.find((t) => t.includes('client_email')) ?? '';
+  const field = (k: string) => text.match(new RegExp(`"${k}"\\s*:\\s*"([^"]*)"`))?.[1];
+  const key = text.match(/-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----/)?.[0];
+  const email = field('client_email');
+  const project = field('project_id');
+  if (!key || !email || !project) throw new ShapeError(saShape(raw));
+  return { client_email: email, private_key: key.replace(/\\n/g, '\n'), project_id: project };
+}
+
 async function fcmAccessToken(sa: { client_email: string; private_key: string }): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
@@ -97,7 +158,7 @@ async function fcmAccessToken(sa: { client_email: string; private_key: string })
       assertion: `${header}.${claims}.${b64url(sig)}`,
     }),
   });
-  if (!res.ok) throw new Error(`oauth ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`oauth ${res.status}: ${(await res.text()).slice(0, 200)}`);
   return (await res.json()).access_token as string;
 }
 
@@ -191,19 +252,24 @@ async function editionTargets(db: SupabaseClient, editionId: number): Promise<Ta
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
+  let stage = 'start'; // where a failure happened (returned without details: they may hold secrets)
+  let authorized = false;
+  let logKey: string | null = null;
+  const db = adminClient();
   try {
-    const db = adminClient();
     const settings = await getSettings(db, [
       'push_webhook_secret', 'push_max_age_minutes',
       ...(['he', 'en', 'fr'] as const).flatMap((l) => [`push_special_title_${l}`, `push_special_body_${l}`, `push_edition_body_${l}`]),
     ]);
     const expected = settingText(settings, 'push_webhook_secret', '');
     if (!expected || req.headers.get('x-app-secret') !== expected) return json({ error: 'forbidden' }, 403);
+    authorized = true;
 
     const body = await readBody(req);
     const editionId = Number(body.edition_id);
     if (!Number.isSafeInteger(editionId)) return json({ error: 'missing_edition_id' }, 400);
 
+    stage = 'payload';
     const { data: payload, error: pErr } = await db.rpc('app_push_payload', { p_edition_id: editionId });
     if (pErr) throw pErr;
     if (!payload) return json({ error: 'not_found' }, 404);
@@ -214,9 +280,11 @@ Deno.serve(async (req) => {
 
     const { data: log } = await db.from('app_push_log').select('key, pushed_at').eq('edition_id', editionId).maybeSingle();
     if (log?.pushed_at) return json({ skipped: true, reason: 'already_pushed' });
+    logKey = log?.key ?? null;
 
     const language = (['he', 'en', 'fr'].includes(payload.language) ? payload.language : 'he') as Lang;
     const special = payload.edition_type === 'special_update';
+    stage = 'targets';
     const targets = special ? await specialTargets(db, language) : await editionTargets(db, editionId);
     const channelId = special ? 'special' : 'editions';
     const saRaw = env('FCM_SERVICE_ACCOUNT');
@@ -231,6 +299,7 @@ Deno.serve(async (req) => {
     }
 
     // Shabbat / Yom Tov: no pushes for readers whose city is resting now.
+    stage = 'rest_periods';
     const nowIso = new Date().toISOString();
     const cityIds = [...new Set(targets.map((t) => t.shabbat_city_id))];
     const { data: resting } = await db
@@ -272,8 +341,11 @@ Deno.serve(async (req) => {
       invalid.push(...r.invalid);
     }
     if (saRaw && fcmTargets.length) {
-      const sa = JSON.parse(saRaw);
+      stage = 'fcm_service_account';
+      const sa = parseServiceAccount(saRaw);
+      stage = 'fcm_oauth';
       const accessToken = await fcmAccessToken(sa);
+      stage = 'fcm_send';
       for (const t of fcmTargets.filter(awake)) {
         const r = await sendFcm(sa.project_id, accessToken, t.token, title, message(t), data, channelId);
         if (r === 'ok') sent++;
@@ -281,13 +353,17 @@ Deno.serve(async (req) => {
       }
     }
 
+    stage = 'log';
     if (invalid.length) await db.from('app_devices').delete().in('push_token', invalid);
     const result = { ok: true, kind: special ? 'special' : kind, sent, skipped_shabbat: shabbat, removed_tokens: invalid.length };
     if (log) await db.from('app_push_log').update({ pushed_at: new Date().toISOString(), result }).eq('key', log.key);
     console.log('app-push', { edition: editionId, ...result });
     return json(result);
   } catch (e) {
-    console.error('app-push', e);
-    return json({ error: 'server_error' }, 500);
+    console.error('app-push', stage, e);
+    // the failure stays visible in app_push_log (result.error, result.stage); the edition can be pushed again
+    if (logKey) await db.from('app_push_log').update({ result: { error: 'server_error', stage } }).eq('key', logKey);
+    const shape = e instanceof ShapeError ? { secret_shape: e.shape } : {};
+    return json({ error: 'server_error', ...(authorized ? { stage, ...shape } : {}) }, 500);
   }
 });
