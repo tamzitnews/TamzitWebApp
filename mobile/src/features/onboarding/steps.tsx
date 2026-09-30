@@ -13,7 +13,7 @@ import { defineStrings, useStrings } from '@/lib/i18n';
 import { qk, useCommunities, useTopics } from '@/lib/queries';
 import { supabase } from '@/lib/supabase';
 import type { Language, Me } from '@/lib/types';
-import { prefsToProfilePatch, usePrefs } from '@/state/prefs';
+import { DEFAULT_SLOTS, prefsToProfilePatch, usePrefs } from '@/state/prefs';
 import { space } from '@/theme/tokens';
 import { OnboardingFrame } from './layout';
 import { STEP_HREF, STEPS, useOnboardingProgress, type StepId } from './progress';
@@ -31,8 +31,8 @@ const S = defineStrings({
     topicsNone: 'בחרו לפחות נושא אחד.',
     communityTitle: 'מהדורה קהילתית (לא חובה)',
     communitySub: 'ידיעות מקומיות, בסוף כל מהדורה.',
-    rhythmTitle: 'מתי ומה לקבל?',
-    rhythmSub: 'מהדורה קצרה בשעות קבועות. בלי התראות באמצע.',
+    rhythmTitle: 'כמה ומה לקבל?',
+    rhythmSub: 'מהדורה קצרה, פעם עד שלוש פעמים ביום. בלי התראות באמצע.',
     levelLegend: 'אילו ידיעות להציג?',
     styleTitle: 'באיזה סגנון לכתוב לכם?',
     styleSub: 'אותה ידיעה, ארבעה קולות.',
@@ -50,8 +50,8 @@ const S = defineStrings({
     topicsNone: 'Choose at least one topic.',
     communityTitle: 'Community edition (optional)',
     communitySub: 'Local news at the end of every edition.',
-    rhythmTitle: 'When, and what?',
-    rhythmSub: 'A short edition at fixed times. No alerts in between.',
+    rhythmTitle: 'How often, and what?',
+    rhythmSub: 'A short edition, one to three times a day. No alerts in between.',
     levelLegend: 'Which news should we include?',
     styleTitle: 'Which writing style suits you?',
     styleSub: 'The same news, four voices.',
@@ -69,8 +69,8 @@ const S = defineStrings({
     topicsNone: 'Choisissez au moins un sujet.',
     communityTitle: 'Édition locale (facultatif)',
     communitySub: 'Des nouvelles locales à la fin de chaque édition.',
-    rhythmTitle: 'Quand, et quoi ?',
-    rhythmSub: 'Une édition courte à heures fixes. Pas d’alertes entre deux.',
+    rhythmTitle: 'À quelle fréquence, et quoi ?',
+    rhythmSub: 'Une édition courte, une à trois fois par jour. Pas d’alertes entre deux.',
     levelLegend: 'Quelles nouvelles inclure ?',
     styleTitle: 'Quel style d’écriture vous convient ?',
     styleSub: 'La même nouvelle, quatre voix.',
@@ -216,12 +216,12 @@ export function RhythmStep() {
   const s = useStrings(S);
   const { at, of, next, back } = useStep('rhythm');
   const frequency = usePrefs((p) => p.frequency);
-  const slotTimes = usePrefs((p) => p.slotTimes);
   const levelFilter = usePrefs((p) => p.levelFilter);
   const setPrefs = usePrefs((p) => p.set);
   return (
     <OnboardingFrame at={at} of={of} onBack={back} title={s.rhythmTitle} subtitle={s.rhythmSub} cta={<Button block size="lg" onPress={next}>{s.next}</Button>}>
-      <RhythmPicker frequency={frequency} slotTimes={slotTimes} onChange={(v) => setPrefs({ frequency: v.frequency, slotTimes: v.slotTimes })} />
+      {/* slotTimes still goes to the profile (slot_times); the reader no longer sees or picks times. */}
+      <RhythmPicker frequency={frequency} onChange={(f) => setPrefs({ frequency: f, slotTimes: [...DEFAULT_SLOTS[f]] })} />
       <View style={{ gap: space[2] }}>
         <T variant="caption" color="inkMuted" weight={600} accessibilityRole="header">{s.levelLegend}</T>
         <LevelPicker value={levelFilter} onChange={(v) => setPrefs({ levelFilter: v })} />

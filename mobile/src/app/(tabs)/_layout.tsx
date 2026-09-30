@@ -64,7 +64,7 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 export default function TabsLayout() {
-  // Local edition reminders (skipping Shabbat / Yom Tov), push token registration, notification taps.
+  // Push token registration, refreshing the edition when a push arrives, notification taps.
   useNotificationSync();
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => (

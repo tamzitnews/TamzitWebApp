@@ -1,18 +1,16 @@
 // Shared preference pickers: used by the onboarding steps and by the settings screens.
 // Each one renders only the control (no page title, no CTA) and is fully controlled.
-import { Backpack, Check, Feather, Heart, List, MapPin, Minus, Newspaper, Plus, Smile, X } from 'lucide-react-native';
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Backpack, Check, Feather, Heart, List, MapPin, Newspaper, Plus, Smile } from 'lucide-react-native';
+import { memo, useCallback, useMemo } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 
-import { Button, Chip, Icon, IconButton, LevelMeter, OptionCard, Segmented, T } from '@/components/ui';
+import { Button, Chip, Icon, LevelMeter, OptionCard, Segmented, T } from '@/components/ui';
+import { EDITION_ICONS } from '@/features/edition/EditionHeader';
 import { defineStrings, EDITION_NAMES, localName, slotEditionType, useLang, useStrings } from '@/lib/i18n';
 import { useCommunities, useTopics } from '@/lib/queries';
-import type { Audience, Community, Language, LevelFilter, Style } from '@/lib/types';
-import { DEFAULT_SLOTS } from '@/state/prefs';
+import type { Audience, Community, EditionType, Language, LevelFilter, Style } from '@/lib/types';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space, touchMin } from '@/theme/tokens';
-import { fromMinutes, SLOT_STEP, slotBounds, slotChoices, toMinutes } from './time';
 
 const S = defineStrings({
   he: {
@@ -38,13 +36,11 @@ const S = defineStrings({
     twiceHint: 'בוקר וערב',
     three: '3 פעמים',
     threeHint: 'גם בצהריים',
-    times: 'שעות',
-    timesHint: 'אפשר להזיז ברבע שעה, או ללחוץ על השעה ולבחור מהרשימה.',
-    earlier: (n: string) => `להקדים את ${n}`,
-    later: (n: string) => `לאחר את ${n}`,
-    pickTime: (n: string, t: string) => `${n}, ${t}. לבחירת שעה אחרת`,
-    chooseTime: 'בחרו שעה',
-    close: 'סגירה',
+    youGet: 'מה תקבלו',
+    daily: 'המהדורה היומית, בערב',
+    cholHamoed: 'בחול המועד אין מהדורת צהריים.',
+    erevShabbat: 'בערב שבת וחג המהדורה האחרונה יוצאת בצהריים, ואחרי צאת השבת מגיעה מהדורת מוצאי שבת.',
+    notifyNote: 'התראה מגיעה כשהמהדורה עולה.',
     levelCritical: 'רק קריטיות',
     levelCriticalDesc: 'מה שמשפיע עליכם ישירות, היום',
     levelImportant: 'קריטיות וחשובות',
@@ -87,13 +83,11 @@ const S = defineStrings({
     twiceHint: 'Morning and evening',
     three: '3 times',
     threeHint: 'Also at midday',
-    times: 'Times',
-    timesHint: 'Move each time in 15-minute steps, or tap the time to pick from a list.',
-    earlier: (n: string) => `Make the ${n.toLowerCase()} earlier`,
-    later: (n: string) => `Make the ${n.toLowerCase()} later`,
-    pickTime: (n: string, t: string) => `${n}, ${t}. Pick another time`,
-    chooseTime: 'Pick a time',
-    close: 'Close',
+    youGet: 'What you get',
+    daily: 'The daily edition, in the evening',
+    cholHamoed: 'On Chol Hamoed there is no midday edition.',
+    erevShabbat: 'Before Shabbat and holidays the last edition comes out at midday, and the Motzei Shabbat edition arrives after Shabbat ends.',
+    notifyNote: 'A notification comes when the edition is published.',
     levelCritical: 'Critical only',
     levelCriticalDesc: 'What affects you directly, today',
     levelImportant: 'Critical and important',
@@ -136,13 +130,11 @@ const S = defineStrings({
     twiceHint: 'Matin et soir',
     three: '3 fois',
     threeHint: 'Aussi à midi',
-    times: 'Horaires',
-    timesHint: "Décalez chaque horaire par quart d'heure, ou touchez l'heure pour choisir dans la liste.",
-    earlier: (n: string) => `Avancer l’${n.charAt(0).toLowerCase()}${n.slice(1)}`,
-    later: (n: string) => `Retarder l’${n.charAt(0).toLowerCase()}${n.slice(1)}`,
-    pickTime: (n: string, t: string) => `${n}, ${t}. Choisir une autre heure`,
-    chooseTime: 'Choisissez une heure',
-    close: 'Fermer',
+    youGet: 'Ce que vous recevez',
+    daily: 'L’édition quotidienne, le soir',
+    cholHamoed: 'Pendant Hol Hamoed, il n’y a pas d’édition de midi.',
+    erevShabbat: 'La veille de Chabbat et des fêtes, la dernière édition paraît à midi, et l’édition de Motsaé Chabbat arrive après la fin de Chabbat.',
+    notifyNote: 'Une notification arrive quand l’édition est publiée.',
     levelCritical: 'Critiques seulement',
     levelCriticalDesc: 'Ce qui vous concerne directement, aujourd’hui',
     levelImportant: 'Critiques et importantes',
@@ -335,188 +327,48 @@ export function CommunityPicker({ value, onChange }: { value: string[]; onChange
   );
 }
 
-// ---------------------------------------------------------------- Rhythm (frequency + times)
+// ---------------------------------------------------------------- Rhythm (frequency)
 
 type Frequency = 1 | 2 | 3;
 
-function StepButton({ icon, label, disabled, onPress }: { icon: typeof Plus; label: string; disabled: boolean; onPress: () => void }) {
-  const { c } = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      hitSlop={4}
-      style={({ pressed }) => ({
-        width: touchMin,
-        height: touchMin,
-        borderRadius: touchMin / 2,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: c.surfaceTint,
-        opacity: disabled ? 0.35 : pressed ? 0.6 : 1,
-      })}>
-      <Icon as={icon} size={20} strokeWidth={2.25} />
-    </Pressable>
-  );
+/** The editions a reader with `frequency` editions a day gets, in day order. */
+export function frequencyEditions(frequency: Frequency): EditionType[] {
+  return Array.from({ length: frequency }, (_, i) => slotEditionType(frequency, i));
 }
 
-function TimeSheet({
-  title,
-  choices,
-  value,
-  onPick,
-  onClose,
-}: {
-  title: string;
-  choices: string[];
-  value: string;
-  onPick: (t: string) => void;
-  onClose: () => void;
-}) {
+/**
+ * "What you get" for a frequency: one row per edition with its icon and name (no times: the
+ * newsroom publishes on its own schedule, and a notification comes when the edition is out).
+ */
+export function FrequencyEditions({ frequency, title }: { frequency: Frequency; title: string }) {
   const { c } = useTheme();
   const s = useStrings(S);
-  const insets = useSafeAreaInsets();
-  const COLS = 4;
-  const CELL_H = touchMin + space[2];
-  const selectedRow = Math.max(0, Math.floor(choices.indexOf(value) / COLS));
-  const scroller = useRef<ScrollView>(null);
-  return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={s.close} onPress={onClose} style={{ position: 'absolute', top: 0, bottom: 0, start: 0, end: 0, backgroundColor: c.scrim }} />
-        <View
-          accessibilityViewIsModal
-          style={{
-            maxHeight: '70%',
-            backgroundColor: c.surface,
-            borderTopStartRadius: radius.lg,
-            borderTopEndRadius: radius.lg,
-            paddingTop: space[2],
-            paddingBottom: insets.bottom + space[4],
-          }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space[5], paddingVertical: space[2], gap: space[3] }}>
-            <View style={{ flex: 1 }}>
-              <T variant="headline" accessibilityRole="header">{title}</T>
-              <T variant="caption" color="inkMuted">{s.chooseTime}</T>
-            </View>
-            <IconButton icon={X} label={s.close} onPress={onClose} variant="tint" />
-          </View>
-          <ScrollView
-            ref={scroller}
-            // Open with the current time in view (one row of context above it).
-            onContentSizeChange={() => scroller.current?.scrollTo({ y: Math.max(0, (selectedRow - 1) * CELL_H), animated: false })}
-            contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: space[4], paddingVertical: space[2] }}>
-            {choices.map((t) => {
-              const on = t === value;
-              return (
-                <View key={t} style={{ width: `${100 / COLS}%`, height: CELL_H, padding: space[1] }}>
-                  <Pressable
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: on }}
-                    onPress={() => onPick(t)}
-                    style={({ pressed }) => ({
-                      flex: 1,
-                      borderRadius: radius.pill,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: on ? c.brand : c.surfaceRaised,
-                      borderWidth: 1.5,
-                      borderColor: on ? c.brand : c.line,
-                      opacity: pressed ? 0.7 : 1,
-                    })}>
-                    <T variant="label" color={on ? 'onBrand' : 'ink'} style={{ fontVariant: ['tabular-nums'] }}>{t}</T>
-                  </Pressable>
-                </View>
-              );
-            })}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function SlotRow({
-  name,
-  time,
-  bounds,
-  choices,
-  last,
-  onChange,
-}: {
-  name: string;
-  time: string;
-  bounds: { min: number; max: number };
-  choices: () => string[];
-  last: boolean;
-  onChange: (t: string) => void;
-}) {
-  const { c } = useTheme();
-  const s = useStrings(S);
-  const [sheet, setSheet] = useState(false);
-  const t = toMinutes(time);
-  const earlier = t % SLOT_STEP ? t - (t % SLOT_STEP) : t - SLOT_STEP;
-  const later = t % SLOT_STEP ? t + SLOT_STEP - (t % SLOT_STEP) : t + SLOT_STEP;
+  const lang = useLang();
+  const rows = frequency === 1 ? [{ type: 'evening' as EditionType, name: s.daily }] : frequencyEditions(frequency).map((type) => ({ type, name: EDITION_NAMES[lang][type] }));
   return (
     <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[2],
-        minHeight: 64,
-        paddingVertical: space[2],
-        borderBottomWidth: last ? 0 : 1,
-        borderBottomColor: c.line,
-      }}>
-      <T variant="label" style={{ flex: 1 }}>{name}</T>
-      <StepButton icon={Minus} label={s.earlier(name)} disabled={earlier < bounds.min} onPress={() => onChange(fromMinutes(earlier))} />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={s.pickTime(name, time)}
-        onPress={() => setSheet(true)}
-        style={({ pressed }) => ({ minWidth: 72, minHeight: touchMin, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, opacity: pressed ? 0.6 : 1 })}>
-        <T variant="headline" style={{ fontSize: 20, fontVariant: ['tabular-nums'] }}>{time}</T>
-      </Pressable>
-      <StepButton icon={Plus} label={s.later(name)} disabled={later > bounds.max} onPress={() => onChange(fromMinutes(later))} />
-      {sheet ? (
-        <TimeSheet
-          title={name}
-          choices={choices()}
-          value={time}
-          onClose={() => setSheet(false)}
-          onPick={(v) => {
-            setSheet(false);
-            onChange(v);
-          }}
-        />
-      ) : null}
+      accessible
+      accessibilityLabel={`${title}: ${rows.map((r) => r.name).join(', ')}`}
+      style={{ backgroundColor: c.surfaceRaised, borderRadius: radius.lg, padding: space[4], gap: space[3], borderWidth: 1, borderColor: c.line }}>
+      <T variant="overline" color="inkMuted">{title}</T>
+      {rows.map((r) => (
+        <View key={r.type} style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
+          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.surfaceTint, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon as={EDITION_ICONS[r.type]} size={18} />
+          </View>
+          <T variant="label" style={{ flex: 1 }}>{r.name}</T>
+        </View>
+      ))}
     </View>
   );
 }
 
 /**
- * How many editions a day, and when. Changing the frequency resets the times to the defaults;
- * each time moves in 15-minute steps between 05:00 and 23:00, always in day order.
+ * How many editions a day: once (the daily edition, in the evening), twice (morning and evening) or
+ * three times (morning, midday and evening). The times are the newsroom's, not the reader's.
  */
-export function RhythmPicker({
-  frequency,
-  slotTimes,
-  onChange,
-}: {
-  frequency: Frequency;
-  slotTimes: string[];
-  onChange: (v: { frequency: Frequency; slotTimes: string[] }) => void;
-}) {
-  const { c } = useTheme();
+export function RhythmPicker({ frequency, onChange }: { frequency: Frequency; onChange: (f: Frequency) => void }) {
   const s = useStrings(S);
-  const lang = useLang();
-  const times = useMemo(
-    () => (slotTimes.length === frequency ? slotTimes : DEFAULT_SLOTS[frequency]),
-    [slotTimes, frequency],
-  );
   const options = useMemo(
     () => [
       { value: 1 as Frequency, label: s.once, hint: s.onceHint },
@@ -526,31 +378,20 @@ export function RhythmPicker({
     [s],
   );
   return (
-    <View style={{ gap: space[5] }}>
+    <View style={{ gap: space[3] }}>
       <Segmented
         legend={s.frequency}
         options={options}
         value={frequency}
         onChange={(f) => {
-          if (f !== frequency) onChange({ frequency: f, slotTimes: [...DEFAULT_SLOTS[f]] });
+          if (f !== frequency) onChange(f);
         }}
       />
-      <View style={{ gap: space[2] }}>
-        <T variant="caption" color="inkMuted" weight={600}>{s.times}</T>
-        <View style={{ backgroundColor: c.surfaceRaised, borderRadius: radius.lg, paddingHorizontal: space[4], borderWidth: 1, borderColor: c.line }}>
-          {times.map((t, i) => (
-            <SlotRow
-              key={`${frequency}-${i}`}
-              name={EDITION_NAMES[lang][slotEditionType(frequency, i)]}
-              time={t}
-              bounds={slotBounds(times, i)}
-              choices={() => slotChoices(times, i)}
-              last={i === times.length - 1}
-              onChange={(v) => onChange({ frequency, slotTimes: times.map((x, j) => (j === i ? v : x)) })}
-            />
-          ))}
-        </View>
-        <T variant="caption" color="inkMuted">{s.timesHint}</T>
+      <FrequencyEditions frequency={frequency} title={s.youGet} />
+      <View style={{ gap: space[1] }}>
+        {frequency === 3 ? <T variant="caption" color="inkMuted">{s.cholHamoed}</T> : null}
+        <T variant="caption" color="inkMuted">{s.erevShabbat}</T>
+        <T variant="caption" color="inkMuted">{s.notifyNote}</T>
       </View>
     </View>
   );

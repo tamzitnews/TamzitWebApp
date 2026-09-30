@@ -17,7 +17,8 @@ export const qk = {
   communities: ['communities'] as const,
   cities: ['cities'] as const,
   settings: ['settings'] as const,
-  personal: (from: string, to: string) => ['personal', from, to] as const,
+  /** The reader's newest personal edition. Invalidate ['personal'] to refresh it. */
+  personal: ['personal', 'newest'] as const,
   edition: (id: string) => ['edition', id] as const,
   archive: ['archive'] as const,
   saved: ['saved'] as const,
@@ -62,7 +63,9 @@ export function useUpdateProfile() {
         qc.invalidateQueries({ queryKey: ['search'] });
         qc.invalidateQueries({ queryKey: qk.saved });
       }
-      if ('language' in patch || 'audience' in patch) qc.invalidateQueries({ queryKey: qk.archive });
+      // The frequency picks the reader's editions (and track); the Shabbat city moves the next edition.
+      if ('frequency' in patch || 'shabbat_city_id' in patch) qc.invalidateQueries({ queryKey: ['personal'] });
+      if ('language' in patch || 'audience' in patch || 'frequency' in patch) qc.invalidateQueries({ queryKey: qk.archive });
     },
   });
 }

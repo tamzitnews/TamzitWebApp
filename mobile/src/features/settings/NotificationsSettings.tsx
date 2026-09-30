@@ -13,57 +13,54 @@ import { useEffectiveNote, useNotificationPermission, useProfileValues, useSaveP
 const S = defineStrings({
   he: {
     title: 'התראות',
-    note: 'התראה אחת לכל מהדורה, בשעות שבחרתם. בלי התראות אחרות: לא "חדש", לא "פספסתם" ולא שיווק.',
-    edition: 'המהדורה מוכנה',
-    editionDesc: 'התראה אחת כשהמהדורה שלכם מוכנה',
+    note: 'התראה אחת לכל מהדורה, כשהיא עולה. בלי התראות אחרות: לא "חדש", לא "פספסתם" ולא שיווק.',
+    edition: 'מהדורות',
+    editionDesc: 'התראה כשמהדורה חדשה עולה',
     special: 'עדכון מיוחד',
     specialDesc: 'רק באירוע חריג, גם מחוץ לשעות המהדורות',
     headline: 'הכותרת הראשית בהתראה',
     headlineDesc: 'בהתראה על מהדורה או עדכון מיוחד',
-    times: (t: string) => `שעות המהדורות: ${t}`,
     shabbat: 'בשבת ובחג אין התראות. מהדורת מוצאי שבת מגיעה אחרי צאת השבת.',
     blocked: 'ההתראות כבויות בהגדרות המכשיר, ולכן לא תגיע אף התראה.',
     openSettings: 'לפתיחת הגדרות המכשיר',
     ask: 'עוד לא אישרתם התראות במכשיר.',
     allow: 'לאישור התראות',
     web: 'התראות זמינות באפליקציה לאנדרואיד.',
-    signedOut: 'העדכונים המיוחדים וכותרת בהתראה זמינים אחרי כניסה לחשבון.',
+    signedOut: 'ההתראות זמינות אחרי כניסה לחשבון.',
   },
   en: {
     title: 'Notifications',
-    note: 'One notification per edition, at the times you chose. No other notifications: no "new", no "you missed", no marketing.',
-    edition: 'Edition is ready',
-    editionDesc: 'One notification when your edition is ready',
+    note: 'One notification per edition, when it is published. No other notifications: no "new", no "you missed", no marketing.',
+    edition: 'Editions',
+    editionDesc: 'A notification when a new edition is published',
     special: 'Special update',
     specialDesc: 'Only for an exceptional event, even outside edition times',
     headline: 'Main headline in the notification',
     headlineDesc: 'In edition and special update notifications',
-    times: (t: string) => `Edition times: ${t}`,
     shabbat: 'No notifications on Shabbat and holidays. The Motzei Shabbat edition arrives after Shabbat ends.',
     blocked: 'Notifications are turned off in your device settings, so none will arrive.',
     openSettings: 'Open device settings',
     ask: 'You haven’t allowed notifications on this device yet.',
     allow: 'Allow notifications',
     web: 'Notifications are available in the Android app.',
-    signedOut: 'Special updates and headlines in notifications are available after you sign in.',
+    signedOut: 'Notifications are available after you sign in.',
   },
   fr: {
     title: 'Notifications',
-    note: 'Une notification par édition, aux heures choisies. Aucune autre : pas de « nouveau », pas de « vous avez manqué », pas de marketing.',
-    edition: 'Édition prête',
-    editionDesc: 'Une notification quand votre édition est prête',
+    note: 'Une notification par édition, à sa parution. Aucune autre : pas de « nouveau », pas de « vous avez manqué », pas de marketing.',
+    edition: 'Éditions',
+    editionDesc: 'Une notification quand une nouvelle édition est publiée',
     special: 'Mise à jour spéciale',
     specialDesc: 'Seulement pour un événement exceptionnel, même hors des heures d’édition',
     headline: 'Titre principal dans la notification',
     headlineDesc: 'Dans les notifications d’édition et de mise à jour spéciale',
-    times: (t: string) => `Heures des éditions : ${t}`,
     shabbat: 'Aucune notification pendant Chabbat et les fêtes. L’édition de Motsaé Chabbat arrive après la fin de Chabbat.',
     blocked: 'Les notifications sont désactivées dans les réglages de l’appareil : aucune n’arrivera.',
     openSettings: 'Ouvrir les réglages de l’appareil',
     ask: 'Vous n’avez pas encore autorisé les notifications sur cet appareil.',
     allow: 'Autoriser les notifications',
     web: 'Les notifications sont disponibles dans l’application Android.',
-    signedOut: 'Les mises à jour spéciales et le titre dans la notification sont disponibles après connexion.',
+    signedOut: 'Les notifications sont disponibles après connexion.',
   },
 });
 
@@ -77,7 +74,7 @@ function NotificationsInner({ values }: { values: ProfileValues }) {
   const { signedIn } = useProfileValues();
   const { save, state } = useSaveProfile();
   const { permission, refresh } = useNotificationPermission();
-  const note = useEffectiveNote(values.slot_times, values.frequency);
+  const note = useEffectiveNote();
   const [v, setV] = useState({
     edition_push: values.edition_push,
     special_push: values.special_push,
@@ -125,14 +122,9 @@ function NotificationsInner({ values }: { values: ProfileValues }) {
           {s.signedOut}
         </T>
       ) : null}
-      <View style={{ gap: space[2] }}>
-        <T variant="caption" color="inkMuted">
-          {s.times([...values.slot_times].sort().join(' · '))}
-        </T>
-        <T variant="caption" color="inkMuted">
-          {s.shabbat}
-        </T>
-      </View>
+      <T variant="caption" color="inkMuted">
+        {s.shabbat}
+      </T>
     </SettingsPage>
   );
 }

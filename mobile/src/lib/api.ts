@@ -28,8 +28,12 @@ async function rpc<T>(name: string, args?: Record<string, unknown>): Promise<T> 
 
 export const api = {
   me: () => rpc<Me>('app_me'),
-  personalEdition: (from: Date, to: Date) =>
-    rpc<Feed>('app_personal_edition', { p_from: from.toISOString(), p_to: to.toISOString() }),
+  /** No window: the reader's newest edition (plus the special updates since the one before it). */
+  personalEdition: (from?: Date, to?: Date) =>
+    rpc<Feed>('app_personal_edition', {
+      ...(from ? { p_from: from.toISOString() } : {}),
+      ...(to ? { p_to: to.toISOString() } : {}),
+    }),
   editionView: (editionId: string) => rpc<Feed>('app_edition_view', { p_edition_id: editionId }),
   archive: (days = 30) => rpc<ArchiveEntry[]>('app_archive', { p_days: days }),
   search: (query: string, limit = 30) => rpc<FeedItem[]>('app_search', { p_query: query, p_limit: limit }),

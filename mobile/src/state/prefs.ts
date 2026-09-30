@@ -4,8 +4,8 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { Audience, Language, LevelFilter, Style, ThemePref } from '@/lib/types';
 
-// Just after the newsroom publishes (weekday medians: morning ~09:20, noon ~15:10, evening and
-// daily ~21:05; 90% are out by 09:55 / 15:42 / 21:10), so the edition is ready when the reminder comes.
+// Sent as the profile's slot_times when the frequency changes (the column still exists on the server).
+// The reader no longer sees or picks times: the server pushes each edition when it is published.
 export const DEFAULT_SLOTS: Record<1 | 2 | 3, string[]> = {
   1: ['21:30'],
   2: ['10:00', '21:30'],

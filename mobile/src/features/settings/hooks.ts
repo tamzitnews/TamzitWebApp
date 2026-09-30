@@ -2,11 +2,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
-import { useShabbatCity } from '@/features/shabbat/hooks';
-import { formatTime, useLang } from '@/lib/i18n';
-import { getNotificationPermission, nextEditionAt, type PermissionState } from '@/lib/notifications';
+import { useStrings } from '@/lib/i18n';
+import { getNotificationPermission, type PermissionState } from '@/lib/notifications';
 import { qk, useMe, useUpdateProfile } from '@/lib/queries';
-import type { Language, Me, PrefsPatch, Profile } from '@/lib/types';
+import type { Me, PrefsPatch, Profile } from '@/lib/types';
 import { usePrefs, type PrefsState } from '@/state/prefs';
 import { useSession } from '@/state/session';
 import { SETTINGS_S } from './strings';
@@ -172,27 +171,12 @@ export function useNotificationPermission() {
   return { permission: state, refresh };
 }
 
-const LOCALES: Record<Language, string> = { he: 'he-IL', en: 'en-GB', fr: 'fr-FR' };
-
-/** "השינוי ייכנס לתוקף מהמהדורה הבאה, ב־20:00." for the given (or current) edition times. */
-export function useEffectiveNote(slotTimes: string[], frequency: 1 | 2 | 3) {
-  const lang = useLang();
-  const s = SETTINGS_S[lang];
-  const city = useShabbatCity();
-  const key = slotTimes.join(',');
-  return useMemo(() => {
-    const next = nextEditionAt(key ? key.split(',') : [], frequency, city);
-    if (!next) return null;
-    const t = formatTime(next.at);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    let when: string;
-    if (next.at.toDateString() === today.toDateString()) when = s.whenToday(t);
-    else if (next.at.toDateString() === tomorrow.toDateString()) when = s.whenTomorrow(t);
-    else when = s.whenDay(new Intl.DateTimeFormat(LOCALES[lang], { weekday: 'long' }).format(next.at), t);
-    return s.effective(when);
-  }, [key, frequency, city, s, lang]);
+/**
+ * "השינוי ייכנס לתוקף מהמהדורה הבאה." The next edition's time is the newsroom's (and comes with the
+ * edition, see feed.next_edition), so the note names no time.
+ */
+export function useEffectiveNote() {
+  return useStrings(SETTINGS_S).effective;
 }
 
 /** "+972501234567" → "050-123-4567". Other countries stay in international form. */

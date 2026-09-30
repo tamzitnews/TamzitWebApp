@@ -7,7 +7,7 @@ import { Linking, View } from 'react-native';
 import { Button, ErrorState, ListGroup, ListRow, Loading, T, TextField } from '@/components/ui';
 import { CityField, type CityValue } from '@/features/auth/CityField';
 import { defineStrings, localName, useLang, useStrings } from '@/lib/i18n';
-import { cancelEditionNotifications } from '@/lib/notifications';
+import { forgetDeviceOnSignOut } from '@/lib/notifications';
 import { useAppSettings, useCities } from '@/lib/queries';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/types';
@@ -187,7 +187,8 @@ function AccountForm({ profile }: { profile: Profile }) {
 
   const signOut = async () => {
     setSigningOut(true);
-    await cancelEditionNotifications().catch(() => {});
+    // Stops this reader's pushes on this device (the next sign-in registers a new token).
+    await forgetDeviceOnSignOut().catch(() => {});
     // Only this device: the reader stays signed in on their other devices.
     await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
     qc.clear();

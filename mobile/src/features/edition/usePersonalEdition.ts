@@ -1,22 +1,26 @@
-// The reader's current personal edition: the window between their last two slots, fetched with
-// app_personal_edition, refreshed when a new slot passes (timer while open, and when the app comes
-// back to the foreground), and mirrored to AsyncStorage so the last edition opens without a network.
+// The reader's current personal edition: their newest edition (app_personal_edition with no window;
+// the server knows the reader's frequency and track), refreshed every few minutes while open, when the
+// app returns to the foreground, and at once when an edition push arrives (lib/notifications
+// invalidates ['personal']). Mirrored to AsyncStorage so the last edition opens without a network.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { api } from '@/lib/api';
 import { qk } from '@/lib/queries';
-import { currentWindow, nextSlot } from '@/lib/schedule';
 import type { Feed } from '@/lib/types';
-import { usePrefs } from '@/state/prefs';
+import { useSession } from '@/state/session';
 import { personalEditionType } from './editionMeta';
 
 const CACHE_KEY = 'tamzit-last-edition';
-const REFRESH_AFTER_MS = 5 * 60_000;
+/** Look for a new edition this often while the edition is on screen. */
+const REFETCH_INTERVAL_MS = 5 * 60_000;
+/** Back in the foreground, refetch when the edition is older than this. */
+const FOREGROUND_STALE_MS = 60_000;
 
-type CacheEntry = { from: string; to: string; slotIndex: number; feed: Feed; savedAt: number };
+// Entries saved by earlier builds also carry from / to / slotIndex, and no uid.
+type CacheEntry = { feed: Feed; savedAt: number; uid?: string };
 
 let cacheRead: Promise<CacheEntry | null> | null = null;
 function readCache() {
@@ -32,120 +36,76 @@ function writeCache(entry: CacheEntry) {
   AsyncStorage.setItem(CACHE_KEY, JSON.stringify(entry)).catch(() => {});
 }
 
-type Win = ReturnType<typeof currentWindow>;
-
 export function usePersonalEdition() {
-  const slotTimes = usePrefs((s) => s.slotTimes);
-  const frequency = usePrefs((s) => s.frequency);
-  const slotsKey = slotTimes.join(',');
+  const qc = useQueryClient();
+  const uid = useSession().session?.user.id;
 
-  const [win, setWin] = useState<Win>(() => currentWindow(slotTimes));
-  const winRef = useRef(win);
-  winRef.current = win;
-  const slotsRef = useRef(slotTimes);
-  slotsRef.current = slotTimes;
-
-  /** Moves to the current window if a slot passed; returns true when it changed. */
-  const syncWindow = useCallback(() => {
-    const w = currentWindow(slotsRef.current);
-    const cur = winRef.current;
-    if (w.to.getTime() !== cur.to.getTime() || w.from.getTime() !== cur.from.getTime()) {
-      setWin(w);
-      return true;
-    }
-    return false;
-  }, []);
-
-  // Slot times changed in settings.
-  useEffect(() => {
-    syncWindow();
-  }, [slotsKey, syncWindow]);
-
-  const [cache, setCache] = useState<CacheEntry | null>(null);
-  const [cacheLoaded, setCacheLoaded] = useState(false);
+  // `recent`: saved only minutes ago, so (almost surely) still the newest edition: shown while loading.
+  const [cache, setCache] = useState<{ entry: CacheEntry | null; recent: boolean } | null>(null);
   useEffect(() => {
     let alive = true;
-    readCache().then((e) => {
-      if (!alive) return;
-      setCache(e);
-      setCacheLoaded(true);
+    readCache().then((entry) => {
+      if (alive) setCache({ entry, recent: !!entry && Date.now() - entry.savedAt < REFETCH_INTERVAL_MS });
     });
     return () => {
       alive = false;
     };
   }, []);
-
-  const fromISO = win.from.toISOString();
-  const toISO = win.to.toISOString();
-  const cacheMatches = !!cache && cache.from === fromISO && cache.to === toISO;
+  const cacheLoaded = cache !== null;
+  // Another reader's saved edition is never shown.
+  const saved = cache?.entry;
+  const ownCache = saved && (!saved.uid || !uid || saved.uid === uid) ? saved : null;
+  const recentCache = ownCache && cache?.recent ? ownCache : null;
 
   const query = useQuery({
-    queryKey: qk.personal(fromISO, toISO),
-    queryFn: () => api.personalEdition(new Date(fromISO), new Date(toISO)),
+    queryKey: qk.personal,
+    queryFn: async () => {
+      const feed = await api.personalEdition();
+      writeCache({ feed, savedAt: Date.now(), uid });
+      return feed;
+    },
     networkMode: 'offlineFirst',
-    placeholderData: cacheMatches ? cache!.feed : undefined,
-    // A new edition shows as soon as it is published (the server widens the newest window), so look again
-    // every few minutes while the edition is on screen.
-    refetchInterval: REFRESH_AFTER_MS,
+    placeholderData: recentCache?.feed,
+    // A push refreshes the edition as soon as it is published; this covers a missed push.
+    refetchInterval: REFETCH_INTERVAL_MS,
   });
 
-  // Mirror every fresh result.
-  useEffect(() => {
-    if (!query.data || query.isPlaceholderData) return;
-    const entry = { from: fromISO, to: toISO, slotIndex: win.slotIndex, feed: query.data, savedAt: Date.now() };
-    setCache(entry);
-    writeCache(entry);
-  }, [query.data, query.isPlaceholderData, fromISO, toISO, win.slotIndex]);
-
-  // Back to the foreground: move to a new slot, or refresh a stale edition.
-  const queryRef = useRef(query);
-  queryRef.current = query;
+  // Back to the foreground: refresh an edition older than a minute.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => {
       if (st !== 'active') return;
-      if (syncWindow()) return;
-      const q = queryRef.current;
-      if (Date.now() - q.dataUpdatedAt > REFRESH_AFTER_MS) q.refetch();
+      const updatedAt = qc.getQueryState(qk.personal)?.dataUpdatedAt ?? 0;
+      if (Date.now() - updatedAt > FOREGROUND_STALE_MS) qc.refetchQueries({ queryKey: qk.personal, type: 'active' });
     });
     return () => sub.remove();
-  }, [syncWindow]);
+  }, [qc]);
 
-  // While the screen is open, switch to the new edition when the next slot arrives.
-  useEffect(() => {
-    const n = nextSlot(slotTimes);
-    if (!n) return;
-    const ms = n.at.getTime() - Date.now() + 2_000;
-    if (ms <= 0 || ms > 2 ** 31 - 1) return;
-    const t = setTimeout(syncWindow, ms);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toISO, slotsKey, syncWindow]);
-
+  const { refetch } = query;
   const refresh = useCallback(async () => {
-    if (!syncWindow()) await queryRef.current.refetch();
-  }, [syncWindow]);
+    await refetch();
+  }, [refetch]);
 
   // What to show: the live result (kept in memory even when a refetch fails); else the saved
   // edition when the request failed or is paused offline. The line "אין חיבור" shows in both cases.
   const paused = query.fetchStatus === 'paused';
   const failed = query.isError || paused;
   const live = query.data && !query.isPlaceholderData ? query.data : undefined;
-  const fallback = failed && !live ? cache : null;
+  const fallback = failed && !live ? ownCache : null;
   const feed: Feed | undefined = live ?? fallback?.feed ?? query.data;
   const offline = failed && !!feed;
-  const slotIndex = fallback ? fallback.slotIndex : win.slotIndex;
-  const type = personalEditionType(feed, frequency, slotIndex);
-  const readTo = fallback ? fallback.to : toISO;
+  const type = personalEditionType(feed);
+  // app_mark_read with the engine edition id marks that edition read in the archive too.
+  const readKey = feed?.edition_id ? feed.edition_id : `slot:${feed?.window.to ?? ''}`;
 
   return {
     feed,
     type,
-    readKey: `slot:${readTo}`,
+    readKey,
     offline,
     loading: !feed && !failed && (query.isPending || !cacheLoaded),
     error: !feed && failed ? (query.error ?? new Error('offline')) : null,
     refreshing: query.isRefetching && !query.isPlaceholderData,
     refresh,
-    retry: () => query.refetch(),
+    retry: () => refetch(),
   };
 }

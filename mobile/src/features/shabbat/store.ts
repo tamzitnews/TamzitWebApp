@@ -1,5 +1,5 @@
 // Rest periods downloaded from app_rest_periods (computed on the server), kept on the device so the
-// Shabbat screen and the notification schedule work offline. Only the reader's recent cities are kept.
+// Shabbat screen (and the Motzei Chag name of the next edition) work offline. Only the reader's recent cities are kept.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
 import { create } from 'zustand';

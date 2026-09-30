@@ -1,5 +1,5 @@
 // The preference sub-screens of Settings. Each one reuses the shared picker from the onboarding,
-// saves on change and says when the change takes effect.
+// saves on change and says that the change takes effect from the next edition.
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 
@@ -16,7 +16,7 @@ import { api } from '@/lib/api';
 import { useStrings } from '@/lib/i18n';
 import { qk } from '@/lib/queries';
 import type { Audience, Language, LevelFilter, Me, Style } from '@/lib/types';
-import { usePrefs } from '@/state/prefs';
+import { DEFAULT_SLOTS, usePrefs } from '@/state/prefs';
 import { SaveFooter, SettingsPage, ValuesGate } from './components';
 import {
   useDebouncedSave,
@@ -28,9 +28,8 @@ import {
 } from './hooks';
 import { SETTINGS_S } from './strings';
 
-function Footer({ state, slotTimes, frequency }: { state: SaveState; slotTimes: string[]; frequency: 1 | 2 | 3 }) {
-  const note = useEffectiveNote(slotTimes, frequency);
-  return <SaveFooter note={note} state={state} />;
+function Footer({ state }: { state: SaveState }) {
+  return <SaveFooter note={useEffectiveNote()} state={state} />;
 }
 
 // ---------------------------------------------------------------- Language
@@ -75,7 +74,7 @@ function LanguageInner({ initial }: { initial: ProfileValues }) {
     <SettingsPage
       title={s.language}
       note={s.languageNote}
-      footer={<Footer state={state} slotTimes={initial.slot_times} frequency={initial.frequency} />}>
+      footer={<Footer state={state} />}>
       <LanguagePicker value={value} onChange={onChange} />
     </SettingsPage>
   );
@@ -93,7 +92,7 @@ function TrackInner({ initial }: { initial: ProfileValues }) {
   const { save, state } = useSaveProfile();
   const [value, setValue] = useState<Audience>(initial.audience);
   return (
-    <SettingsPage title={s.track} note={s.trackNote} footer={<Footer state={state} slotTimes={initial.slot_times} frequency={initial.frequency} />}>
+    <SettingsPage title={s.track} note={s.trackNote} footer={<Footer state={state} />}>
       <TrackPicker
         value={value}
         onChange={(v) => {
@@ -115,7 +114,7 @@ function LevelInner({ initial }: { initial: ProfileValues }) {
   const { save, state } = useSaveProfile();
   const [value, setValue] = useState<LevelFilter>(initial.level_filter);
   return (
-    <SettingsPage title={s.level} note={s.levelNote} footer={<Footer state={state} slotTimes={initial.slot_times} frequency={initial.frequency} />}>
+    <SettingsPage title={s.level} note={s.levelNote} footer={<Footer state={state} />}>
       <LevelPicker
         value={value}
         onChange={(v) => {
@@ -137,7 +136,7 @@ function StyleInner({ initial }: { initial: ProfileValues }) {
   const { save, state } = useSaveProfile();
   const [value, setValue] = useState<Style>(initial.style);
   return (
-    <SettingsPage title={s.style} note={s.styleNote} footer={<Footer state={state} slotTimes={initial.slot_times} frequency={initial.frequency} />}>
+    <SettingsPage title={s.style} note={s.styleNote} footer={<Footer state={state} />}>
       <StylePicker
         value={value}
         onChange={(v) => {
@@ -163,7 +162,7 @@ function TopicsInner({ initial }: { initial: ProfileValues }) {
   const setPrefs = usePrefs((x) => x.set);
   const [value, setValue] = useState<string[]>(initial.topics);
   return (
-    <SettingsPage title={s.topics} note={s.topicsNote} footer={<Footer state={state} slotTimes={initial.slot_times} frequency={initial.frequency} />}>
+    <SettingsPage title={s.topics} note={s.topicsNote} footer={<Footer state={state} />}>
       <TopicPicker
         value={value}
         onChange={(v) => {
@@ -190,7 +189,7 @@ function CommunitiesInner({ initial }: { initial: ProfileValues }) {
     <SettingsPage
       title={s.communities}
       subtitle={s.communitiesSub}
-      footer={<Footer state={state} slotTimes={initial.slot_times} frequency={initial.frequency} />}>
+      footer={<Footer state={state} />}>
       <CommunityPicker
         value={value}
         onChange={(v) => {
@@ -211,15 +210,15 @@ function RhythmInner({ initial }: { initial: ProfileValues }) {
   const s = useStrings(SETTINGS_S);
   const { save, state } = useSaveProfile();
   const schedule = useDebouncedSave(save, 900);
-  const [value, setValue] = useState({ frequency: initial.frequency, slotTimes: initial.slot_times });
+  const [frequency, setFrequency] = useState(initial.frequency);
   return (
-    <SettingsPage title={s.rhythm} footer={<Footer state={state} slotTimes={value.slotTimes} frequency={value.frequency} />}>
+    <SettingsPage title={s.rhythm} footer={<Footer state={state} />}>
       <RhythmPicker
-        frequency={value.frequency}
-        slotTimes={value.slotTimes}
-        onChange={(v) => {
-          setValue(v);
-          schedule({ frequency: v.frequency, slot_times: v.slotTimes });
+        frequency={frequency}
+        onChange={(f) => {
+          setFrequency(f);
+          // slot_times is still a profile column; the reader no longer sees or picks times.
+          schedule({ frequency: f, slot_times: [...DEFAULT_SLOTS[f]] });
         }}
       />
     </SettingsPage>

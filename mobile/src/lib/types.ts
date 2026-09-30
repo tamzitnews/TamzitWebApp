@@ -54,6 +54,13 @@ export type Audio = {
   published_at: string;
 };
 
+/** What the reader gets next and roughly when (the server knows the service schedule and the reader's frequency). */
+export type NextEdition = {
+  type: 'morning' | 'noon' | 'evening' | 'motzash';
+  /** ISO time; may already be a little in the past when the edition is late. */
+  at: string;
+};
+
 export type Feed = {
   window: { from: string; to: string };
   edition_types: EditionType[];
@@ -66,6 +73,13 @@ export type Feed = {
   audio: Audio | null;
   minutes: number;
   is_premium: boolean;
+  // The fields below are optional only for feeds cached by earlier builds.
+  /** Notices to readers found in the edition text ("קוראים יקרים,\n…"), lines separated by "\n". Usually 0 or 1. */
+  notices?: string[];
+  /** The newest regular (engine) edition in the feed, or null when it has none. */
+  edition_id?: string | null;
+  /** Personal edition only: the reader's next edition, or null when unknown. */
+  next_edition?: NextEdition | null;
 };
 
 export type ArchiveEntry = {

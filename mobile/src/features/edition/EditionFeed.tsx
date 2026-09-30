@@ -1,5 +1,5 @@
 // Renders one Feed (personal edition or an archived engine edition) as a virtualized list:
-// header → special updates → news under section / sub-section headings, with the ad after the first
+// header → notices to readers → special updates → news under section / sub-section headings, with the ad after the first
 // section (or the empty-level note) → community → good news → end.
 import { useQueryClient } from '@tanstack/react-query';
 import { memo, useCallback, useEffect, useMemo, useRef, type ReactElement } from 'react';
@@ -20,13 +20,15 @@ import { space } from '@/theme/tokens';
 import { AdSlot } from './AdSlot';
 import { CommunityLabel, EmptyLevel, EndOfEdition, GoodNews } from './Closing';
 import { EditionHeader } from './EditionHeader';
-import { allItems, editionDate, itemCount, useNextEdition } from './editionMeta';
+import { allItems, editionDate, editionPublishedAt, itemCount, useNextEdition } from './editionMeta';
+import { NoticeStrip } from './NoticeStrip';
 import { SectionHeading, SubsectionHeading } from './SectionHeading';
 import { SpecialCard } from './SpecialCard';
 import { S } from './strings';
 
 type Row =
   | { key: string; type: 'header' }
+  | { key: string; type: 'notices'; notices: string[] }
   | { key: string; type: 'special'; item: FeedItem }
   | { key: string; type: 'section'; title: string; afterHeader: boolean }
   | { key: string; type: 'subsection'; title: string; afterSection: boolean }
@@ -66,7 +68,8 @@ function pushNews(rows: Row[], items: FeedItem[], ad: Ad | null) {
       // Leaving the first section: the ad closes it.
       if (named > 0) placeAd();
       if (section) {
-        rows.push({ key: `sec:${i}:${section}`, type: 'section', title: section, afterHeader: rows[rows.length - 1]?.type === 'header' });
+        const prev = rows[rows.length - 1]?.type;
+        rows.push({ key: `sec:${i}:${section}`, type: 'section', title: section, afterHeader: prev === 'header' || prev === 'notices' });
         named++;
       }
     }
@@ -83,6 +86,8 @@ function pushNews(rows: Row[], items: FeedItem[], ad: Ad | null) {
 
 function buildRows(feed: Feed): Row[] {
   const rows: Row[] = [{ key: 'header', type: 'header' }];
+  const notices = (feed.notices ?? []).filter((n) => n.trim());
+  if (notices.length) rows.push({ key: 'notices', type: 'notices', notices });
   for (const it of feed.special) rows.push({ key: `s:${it.id}`, type: 'special', item: it });
   if (feed.items.length === 0 && feed.special.length === 0) rows.push({ key: 'empty', type: 'empty' });
   pushNews(rows, feed.items, feed.ad);
@@ -115,7 +120,7 @@ export type EditionFeedProps = {
   feed: Feed;
   type: EditionType;
   name: string;
-  /** Key for app_mark_read: `slot:<ISO>` for a personal edition, the edition id for an archived one. */
+  /** Key for app_mark_read: the engine edition id (`slot:<ISO>` for a personal edition without one). */
   readKey: string;
   refreshing?: boolean;
   onRefresh?: () => void;
@@ -145,7 +150,7 @@ export function EditionFeed({
   const lang = useLang();
   const qc = useQueryClient();
   const levelFilter = usePrefs((s) => s.levelFilter);
-  const next = useNextEdition();
+  const next = useNextEdition(feed.next_edition);
 
   // Items on screen, for the share / feedback modals.
   useEffect(() => {
@@ -173,7 +178,7 @@ export function EditionFeed({
   const rows = useMemo(() => buildRows(feed), [feed]);
   // The motzash edition sums up a whole Shabbat: item times would only add noise.
   const showTime = type !== 'motzash';
-  const date = editionDate(feed.window.to, lang);
+  const date = editionDate(editionPublishedAt(feed), lang);
   const count = itemCount(feed);
 
   // Mark as read once the end of the edition is on screen.
@@ -199,6 +204,8 @@ export function EditionFeed({
       switch (row.type) {
         case 'header':
           return <EditionHeader type={type} name={name} date={date} count={count} minutes={feed.minutes} onListen={onListen} />;
+        case 'notices':
+          return <NoticeStrip notices={row.notices} />;
         case 'special':
           return <SpecialCard item={row.item} onToggleSave={onToggleSave} onShare={onShare} onFeedback={onFeedback} />;
         case 'section':
