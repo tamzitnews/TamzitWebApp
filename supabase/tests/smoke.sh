@@ -179,11 +179,11 @@ s=$(rpc "$FREE" app_submit_feedback "{\"p_item_id\":\"$ITEM\",\"p_kind\":\"helpf
 s=$(rpc "$FREE" app_submit_feedback "{\"p_item_id\":\"$ITEM\",\"p_kind\":\"question\",\"p_message\":\"בדיקת עשן: שאלה לעורכים\"}"); check "feedback question with message" "s==200 and len(d)==36" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_submit_feedback "{\"p_item_id\":\"$ITEM\",\"p_kind\":\"spam\"}"); check "feedback invalid kind" "s>=400 and d['message']=='invalid_kind'" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_update_profile '{"p_patch":{"style":"light","frequency":1,"phone":"+972599999999","email":"x@y.z","text_scale":1.2}}')
-check "update_profile: whitelist + derived slot_times" "s==200 and d['style']=='light' and d['frequency']==1 and d['slot_times']==['20:00'] and d['phone']=='$REG_PHONE' and d['email']=='$REG_EMAIL' and abs(d['text_scale']-1.2)<1e-6" "$TMP/out" "$s"
+check "update_profile: whitelist + derived slot_times" "s==200 and d['style']=='light' and d['frequency']==1 and d['slot_times']==['21:30'] and d['phone']=='$REG_PHONE' and d['email']=='$REG_EMAIL' and abs(d['text_scale']-1.2)<1e-6" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_me);                                       check "app_me follows the update (style light, frequency 1)" "s==200 and d['profile']['style']=='light' and d['profile']['frequency']==1" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_personal_edition "{\"p_from\":\"$FROM48\"}"); check "one edition a day (daily track): feed still builds" "s==200 and all(t in ('evening','noon','morning','erev_shabbat','motzash') for t in d['edition_types'])" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_update_profile '{"p_patch":{"level_filter":"everything"}}'); check "update_profile: invalid value" "s>=400 and d['message']=='invalid_value'" "$TMP/out" "$s"
-s=$(rpc "$FREE" app_update_profile '{"p_patch":{"style":"calm","frequency":3,"text_scale":1}}'); check "update_profile: restore" "s==200 and d['style']=='calm' and d['slot_times']==['07:30','13:00','20:00']" "$TMP/out" "$s"
+s=$(rpc "$FREE" app_update_profile '{"p_patch":{"style":"calm","frequency":3,"text_scale":1}}'); check "update_profile: restore" "s==200 and d['style']=='calm' and d['slot_times']==['10:00','16:00','21:30']" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_register_device '{"p_token":"smoke-test-native-token","p_platform":"android"}'); check "register_device" "s in (200,204)" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_record_donation '{"p_amount":36,"p_frequency":"once"}'); check "record_donation -> uuid" "s==200 and len(d)==36" "$TMP/out" "$s"
 s=$(rpc "$FREE" app_family_invite '{"p_phone":"0501234567","p_name":"x"}'); check "family_invite: not_family_owner" "s>=400 and d['message']=='not_family_owner'" "$TMP/out" "$s"
@@ -222,27 +222,29 @@ SQLEND
   check "trigger app_tamzit_editions_push is installed and enabled" "d[0]['r']['trigger']=='O'" "$TMP/out" 200
   "$SQL" - > "$TMP/raw" 2>&1 <<'SQLEND'
 do $$
-declare v_log int; v_q0 bigint; v_q1 bigint; v_text text := 'smoke special ' || clock_timestamp();
+declare v_log int; v_elog int; v_q0 bigint; v_q1 bigint; v_text text := 'smoke special ' || clock_timestamp();
 begin
   create temp table smoke_editions (like public.tamzit_editions including defaults) on commit drop;
   create trigger smoke_push after insert on smoke_editions for each row execute function public.app_tamzit_editions_push();
   select count(*) into v_q0 from net.http_request_queue;
-  insert into smoke_editions (id, main_text, language, edition_type, time_slot) values
-    (-1, v_text, 'hebrew', 'special_update', 'עדכון מיוחד'),
-    (-2, v_text, 'hebrew', 'special_update', 'עדכון מיוחד'),   -- duplicate row: no second push
-    (-3, 'smoke classic', 'hebrew', 'classic', 'ערב');         -- not special: no push
+  insert into smoke_editions (id, main_text, language, edition_type, time_slot, edition_date) values
+    (-1, v_text, 'hebrew', 'special_update', 'עדכון מיוחד', '1999-01-01'),
+    (-2, v_text, 'hebrew', 'special_update', 'עדכון מיוחד', '1999-01-01'),   -- duplicate row: no second push
+    (-3, 'smoke classic', 'hebrew', 'classic', 'ערב', '1999-01-01'),          -- a regular edition: one push
+    (-4, 'smoke classic', 'hebrew', 'classic', 'ערב', '1999-01-01');          -- its duplicate row: no second push
   select count(*) into v_log from public.app_push_log where key = 'special:hebrew:' || md5(v_text);
+  select count(*) into v_elog from public.app_push_log where key = 'edition:hebrew:classic:evening:1999-01-01';
   select count(*) into v_q1 from net.http_request_queue;
-  raise exception 'SMOKE {"log": %, "queued": %}', v_log, v_q1 - v_q0;   -- rolls everything back
+  raise exception 'SMOKE {"log": %, "elog": %, "queued": %}', v_log, v_elog, v_q1 - v_q0;   -- rolls everything back
 end $$;
 SQLEND
   python3 -c "import json,re; raw=open('$TMP/raw').read(); raw=raw[raw.index('{'):raw.rindex('}')+1]; msg=json.loads(raw).get('message',''); m=re.search(r'SMOKE (\{[^}]*\})', msg); open('$TMP/out','w').write(m.group(1) if m else '{}')"
-  check "trigger claims one push per distinct special update (rolled back)" "d.get('log')==1 and d.get('queued')==1" "$TMP/out" 200
+  check "trigger claims one push per special update and one per regular edition (rolled back)" "d.get('log')==1 and d.get('elog')==1 and d.get('queued')==2" "$TMP/out" 200
   SECRET=$(echo "select value #>> '{}' as v from public.app_settings where key = 'push_webhook_secret'" | "$SQL" - | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['v'])")
   OLD_SPECIAL=$(echo "select id from public.tamzit_editions where edition_type = 'special_update' order by created_at limit 1" | "$SQL" - | python3 -c "import json,sys; r=json.load(sys.stdin); print(r[0]['id'] if r else 0)")
-  s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-push-special" -H "Authorization: Bearer $ANON" -H 'Content-Type: application/json' -H "x-app-secret: $SECRET" -d "{\"edition_id\":$OLD_SPECIAL}")
+  s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-push" -H "Authorization: Bearer $ANON" -H 'Content-Type: application/json' -H "x-app-secret: $SECRET" -d "{\"edition_id\":$OLD_SPECIAL}")
   check "push function: secret accepted, old special update not re-pushed" "s==200 and d.get('skipped') is True and d.get('reason')=='too_old'" "$TMP/out" "$s"
-  s=$(call POST "$FN/app-push-special" "$ANON" '{"edition_id":1}'); check "push function rejects calls without the secret" "s==403" "$TMP/out" "$s"
+  s=$(call POST "$FN/app-push" "$ANON" '{"edition_id":1}'); check "push function rejects calls without the secret" "s==403" "$TMP/out" "$s"
 fi
 
 echo "== cleanup"

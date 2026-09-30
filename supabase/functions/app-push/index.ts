@@ -1,8 +1,11 @@
-// POST /functions/v1/app-push-special   { edition_id }
-// Called by the trigger app_tamzit_editions_push (pg_net) once per distinct special update inserted into
-// tamzit_editions (edition_type 'special_update'); header x-app-secret must equal app_settings.push_webhook_secret.
-// Sends one push per device whose user_preferences row has special_push = true and the edition's language,
-// except readers whose Shabbat city is inside a rest period (app_rest_periods) right now.
+// POST /functions/v1/app-push   { edition_id }
+// Called by the trigger app_tamzit_editions_push (pg_net) once per published edition: one call per distinct special
+// update, and one per regular edition (language, track, slot, day; the engine inserts each edition several times).
+// Header x-app-secret must equal app_settings.push_webhook_secret.
+//  - special update → every device whose reader has special_push on and the edition's language (channel "special");
+//  - regular edition → every device whose reader has edition_push on and gets this edition
+//    (public.app_push_edition_targets: track and frequency rules), channel "editions".
+// Readers whose Shabbat city is inside a rest period (app_rest_periods) right now are skipped.
 //  - native FCM tokens → FCM HTTP v1 (needs the FCM_SERVICE_ACCOUNT secret: the service-account JSON)
 //  - Expo tokens (ExponentPushToken[…]) → Expo push API
 // Without anything to send through (e.g. no FCM_SERVICE_ACCOUNT and only native tokens) → 200 { skipped: true }.
@@ -10,12 +13,51 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { adminClient, corsHeaders, env, json, readBody } from '../_shared/app-common.ts';
 
 type Target = { token: string; headline_in_push: boolean; shabbat_city_id: string };
+type Lang = 'he' | 'en' | 'fr';
 
-const TITLES: Record<string, string> = { he: 'עדכון מיוחד', en: 'Special update', fr: 'Mise à jour spéciale' };
-const GENERIC: Record<string, string> = {
+const SPECIAL_TITLE: Record<Lang, string> = { he: 'עדכון מיוחד', en: 'Special update', fr: 'Mise à jour spéciale' };
+const SPECIAL_BODY: Record<Lang, string> = {
   he: 'יש עדכון חשוב באפליקציה.',
   en: 'There is an important update in the app.',
   fr: 'Une mise à jour importante vous attend dans l’application.',
+};
+
+// Edition names by kind (app_edition_kind) and track.
+const EDITION_NAME: Record<Lang, Record<string, string>> = {
+  he: {
+    morning: 'מהדורת הבוקר',
+    noon: 'מהדורת הצהריים',
+    evening: 'מהדורת הערב',
+    motzash: 'מהדורת מוצאי שבת',
+    erev_shabbat: 'מהדורת ערב שבת',
+    daily: 'המהדורה היומית',
+  },
+  en: {
+    morning: 'The morning edition',
+    noon: 'The afternoon edition',
+    evening: 'The evening edition',
+    motzash: 'The Motzei Shabbat edition',
+    erev_shabbat: 'The Erev Shabbat edition',
+    daily: 'The daily edition',
+  },
+  fr: {
+    morning: 'L’édition du matin',
+    noon: 'L’édition de midi',
+    evening: 'L’édition du soir',
+    motzash: 'L’édition de Motsaé Chabbat',
+    erev_shabbat: 'L’édition de veille de Chabbat',
+    daily: 'L’édition quotidienne',
+  },
+};
+const READY: Record<Lang, (name: string) => string> = {
+  he: (n) => `${n} מוכנה`,
+  en: (n) => `${n} is ready`,
+  fr: (n) => `${n} est prête`,
+};
+const EDITION_BODY: Record<Lang, string> = {
+  he: 'כמה דקות, ואתם מעודכנים.',
+  en: 'A few minutes, and you’re up to date.',
+  fr: 'Quelques minutes, et vous êtes à jour.',
 };
 
 // --- FCM HTTP v1 ------------------------------------------------------------
@@ -64,6 +106,7 @@ async function sendFcm(
   title: string,
   body: string,
   data: Record<string, string>,
+  channelId: string,
 ): Promise<'ok' | 'invalid' | 'error'> {
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
     method: 'POST',
@@ -73,7 +116,7 @@ async function sendFcm(
         token,
         notification: { title, body },
         data,
-        android: { priority: 'high', notification: { channel_id: 'special' } },
+        android: { priority: 'high', notification: { channel_id: channelId } },
         apns: { payload: { aps: { sound: 'default' } } },
       },
     }),
@@ -90,11 +133,12 @@ async function sendFcm(
 
 async function sendExpo(
   messages: { to: string; title: string; body: string; data: Record<string, string> }[],
+  channelId: string,
 ): Promise<{ sent: number; invalid: string[] }> {
   let sent = 0;
   const invalid: string[] = [];
   for (let i = 0; i < messages.length; i += 100) {
-    const chunk = messages.slice(i, i + 100).map((m) => ({ ...m, sound: 'default', priority: 'high', channelId: 'special' }));
+    const chunk = messages.slice(i, i + 100).map((m) => ({ ...m, sound: 'default', priority: 'high', channelId }));
     const res = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
@@ -115,7 +159,7 @@ async function sendExpo(
 
 // --------------------------------------------------------------------------------
 
-async function loadTargets(db: SupabaseClient, language: string): Promise<Target[]> {
+async function specialTargets(db: SupabaseClient, language: string): Promise<Target[]> {
   const { data, error } = await db
     .from('app_devices')
     .select('push_token, user_preferences!inner(headline_in_push, shabbat_city_id, special_push, language)')
@@ -130,6 +174,16 @@ async function loadTargets(db: SupabaseClient, language: string): Promise<Target
       shabbat_city_id: (p.shabbat_city_id as string) ?? 'jerusalem',
     };
   });
+}
+
+async function editionTargets(db: SupabaseClient, editionId: number): Promise<Target[]> {
+  const { data, error } = await db.rpc('app_push_edition_targets', { p_edition_id: editionId });
+  if (error) throw error;
+  return ((data ?? []) as { push_token: string; headline_in_push: boolean; shabbat_city_id: string }[]).map((r) => ({
+    token: r.push_token,
+    headline_in_push: !!r.headline_in_push,
+    shabbat_city_id: r.shabbat_city_id ?? 'jerusalem',
+  }));
 }
 
 Deno.serve(async (req) => {
@@ -148,7 +202,6 @@ Deno.serve(async (req) => {
     const { data: payload, error: pErr } = await db.rpc('app_push_payload', { p_edition_id: editionId });
     if (pErr) throw pErr;
     if (!payload) return json({ error: 'not_found' }, 404);
-    if (payload.edition_type !== 'special_update') return json({ skipped: true, reason: 'not_a_special_update' });
     if (Date.now() - new Date(payload.created_at as string).getTime() > 6 * 3600 * 1000) {
       return json({ skipped: true, reason: 'too_old' });
     }
@@ -156,15 +209,17 @@ Deno.serve(async (req) => {
     const { data: log } = await db.from('app_push_log').select('key, pushed_at').eq('edition_id', editionId).maybeSingle();
     if (log?.pushed_at) return json({ skipped: true, reason: 'already_pushed' });
 
-    const language = (payload.language as string) ?? 'he';
-    const targets = await loadTargets(db, language);
+    const language = (['he', 'en', 'fr'].includes(payload.language) ? payload.language : 'he') as Lang;
+    const special = payload.edition_type === 'special_update';
+    const targets = special ? await specialTargets(db, language) : await editionTargets(db, editionId);
+    const channelId = special ? 'special' : 'editions';
     const saRaw = env('FCM_SERVICE_ACCOUNT');
     const isExpo = (t: Target) => t.token.startsWith('ExponentPushToken[') || t.token.startsWith('ExpoPushToken[');
     const expoTargets = targets.filter(isExpo);
     const fcmTargets = targets.filter((t) => !isExpo(t));
-    if (!saRaw && fcmTargets.length) console.log(`app-push-special: FCM_SERVICE_ACCOUNT missing; ${fcmTargets.length} native tokens skipped`);
+    if (!saRaw && fcmTargets.length) console.log(`app-push: FCM_SERVICE_ACCOUNT missing; ${fcmTargets.length} native tokens skipped`);
     if (!expoTargets.length && (!saRaw || !fcmTargets.length)) {
-      const result = { skipped: true, reason: saRaw ? 'no_devices' : 'fcm_not_configured', devices: targets.length };
+      const result = { skipped: true, reason: targets.length ? 'fcm_not_configured' : 'no_devices', devices: targets.length };
       if (log) await db.from('app_push_log').update({ result }).eq('key', log.key);
       return json(result);
     }
@@ -180,10 +235,16 @@ Deno.serve(async (req) => {
       .gt('ends_at', nowIso);
     const restingCities = new Set((resting ?? []).map((r: { city_id: string }) => r.city_id));
 
-    const title = TITLES[language] ?? TITLES.he;
-    const data = { type: 'special', edition_id: String(editionId), url: `tamzit://edition/${editionId}` };
+    const kind = payload.track === 'daily' ? 'daily' : String(payload.kind ?? 'evening');
+    const title = special
+      ? SPECIAL_TITLE[language]
+      : READY[language](EDITION_NAME[language][kind] ?? EDITION_NAME[language].evening);
+    const data: Record<string, string> = special
+      ? { type: 'special', edition_id: String(editionId), url: `tamzit://edition/${editionId}` }
+      : { type: 'edition', url: 'tamzit://' };
     const headline = typeof payload.headline === 'string' && payload.headline ? payload.headline : null;
-    const message = (t: Target) => (t.headline_in_push && headline ? headline : GENERIC[language] ?? GENERIC.he);
+    const fallback = special ? SPECIAL_BODY[language] : EDITION_BODY[language];
+    const message = (t: Target) => (t.headline_in_push && headline ? headline : fallback);
 
     let sent = 0;
     let shabbat = 0;
@@ -198,7 +259,7 @@ Deno.serve(async (req) => {
 
     const expoMsgs = expoTargets.filter(awake).map((t) => ({ to: t.token, title, body: message(t), data }));
     if (expoMsgs.length) {
-      const r = await sendExpo(expoMsgs);
+      const r = await sendExpo(expoMsgs, channelId);
       sent += r.sent;
       invalid.push(...r.invalid);
     }
@@ -206,19 +267,19 @@ Deno.serve(async (req) => {
       const sa = JSON.parse(saRaw);
       const accessToken = await fcmAccessToken(sa);
       for (const t of fcmTargets.filter(awake)) {
-        const r = await sendFcm(sa.project_id, accessToken, t.token, title, message(t), data);
+        const r = await sendFcm(sa.project_id, accessToken, t.token, title, message(t), data, channelId);
         if (r === 'ok') sent++;
         else if (r === 'invalid') invalid.push(t.token);
       }
     }
 
     if (invalid.length) await db.from('app_devices').delete().in('push_token', invalid);
-    const result = { ok: true, sent, skipped_shabbat: shabbat, removed_tokens: invalid.length };
+    const result = { ok: true, kind: special ? 'special' : kind, sent, skipped_shabbat: shabbat, removed_tokens: invalid.length };
     if (log) await db.from('app_push_log').update({ pushed_at: new Date().toISOString(), result }).eq('key', log.key);
-    console.log('app-push-special', { edition: editionId, ...result });
+    console.log('app-push', { edition: editionId, ...result });
     return json(result);
   } catch (e) {
-    console.error('app-push-special', e);
+    console.error('app-push', e);
     return json({ error: 'server_error' }, 500);
   }
 });

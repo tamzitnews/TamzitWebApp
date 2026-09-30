@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Precomputes Shabbat / Yom Tov rest periods for every active city into public.app_rest_periods.
+// Precomputes Shabbat / Yom Tov rest periods for every active city into public.app_rest_periods, and the chol
+// hamoed days (Israel) into public.app_calendar_days.
 //
 // Runs on a server or a developer machine only: @hebcal/core is GPL-2.0, so it is a dependency of
 // supabase/scripts and never of the mobile app, which just reads the table.
@@ -119,6 +120,27 @@ function computePeriods(city, from, to) {
   return periods;
 }
 
+/** Chol hamoed days (Israel) between `from` and `to`: [{ day, kind: 'chol_hamoed', name }]. */
+function cholHamoedDays(from, to) {
+  const events = HebrewCalendar.calendar({
+    start: from,
+    end: to,
+    il: true,
+    noMinorFast: true,
+    noModern: true,
+    noRoshChodesh: true,
+    noSpecialShabbat: true,
+  });
+  const out = new Map();
+  for (const ev of events) {
+    if (ev.getFlags() & flags.CHOL_HAMOED) {
+      const day = ymdOf(ev.getDate());
+      if (!out.has(day)) out.set(day, { day, kind: 'chol_hamoed', name: ev.basename() });
+    }
+  }
+  return [...out.values()];
+}
+
 async function main() {
   const now = new Date();
   const from = new Date(now.getTime() - PAST_DAYS * DAY);
@@ -152,6 +174,25 @@ async function main() {
       { method: 'DELETE', headers: { Prefer: 'return=minimal' } },
     );
     console.log(`${city.id.padEnd(14)} ${periods.length} periods`);
+  }
+
+  // Chol hamoed days in Israel (Sukkot, Pesach) → app_calendar_days: the service sends two editions on them
+  // (app_settings.edition_schedule.days.chol_hamoed).
+  const days = cholHamoedDays(from, to);
+  if (DRY) {
+    console.log('chol hamoed', days.map((d) => d.day).join(' '));
+  } else if (days.length) {
+    await rest('app_calendar_days?on_conflict=day', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(days),
+    });
+    const keepDays = days.map((d) => d.day).join(',');
+    await rest(
+      `app_calendar_days?kind=eq.chol_hamoed&day=gte.${from.toISOString().slice(0, 10)}&day=not.in.(${keepDays})`,
+      { method: 'DELETE', headers: { Prefer: 'return=minimal' } },
+    );
+    console.log(`chol hamoed: ${days.length} days`);
   }
 
   if (!DRY) {

@@ -207,13 +207,38 @@ type Feed = {
   audio: { id: string; kind: 'edition'|'flash'; title: string; audio_url: string; duration_sec: number | null; published_at: string } | null;
   minutes: number;                                  // estimated reading time (words / 180, min 1)
   is_premium: boolean;
+  notices: string[];                                // the edition's notices to readers ("קוראים יקרים, …"), 0–2
+  edition_id: string | null;                        // newest regular edition in the feed
+  next_edition?: { type: 'morning'|'noon'|'evening'|'motzash'; at: string } | null;  // personal edition only
 };
 ```
+
+- `notices` (`app_edition_notices`): in each block of the edition between `•   •   •` separators, from a line that opens
+  with "קוראים יקרים" / "Dear readers" / "Chers lecteurs" / "מערכת תמצית החדשות" to the end of the block, or a block
+  about the next edition ("המהדורה הבאה", "next update", "prochaine édition") with no news in it; markup removed. The
+  app shows them small, under the header.
+- `next_edition` (`app_next_edition`): the next edition the reader gets and roughly when, from
+  `app_settings.edition_schedule` (times per slot and language, editions per kind of day), `app_calendar_days`
+  (chol hamoed: morning and evening only) and the reader's rest periods (no edition from `erev_lead_min` before
+  candle lighting to havdalah; Motzei Shabbat `motzash_after_min` after havdalah, not before `motzash_not_before`).
 
 ### Functions
 
 - `app_me() → jsonb` — `{ profile: <profile JSON>, is_premium: bool, plan: 'free'|'premium'|'family', family_role: 'owner'|'member'|null, unread_messages: int }`. `profile` is `null` if the signed-in user has no profile. Also updates `last_seen_at` and marks the user's pending family invitations as joined.
-- `app_personal_edition(p_from timestamptz default null, p_to timestamptz default null) → Feed` — the reader's editions (language + track, see above) with `published_at` in `(p_from, p_to]` (defaults: the last 24 hours), filtered by the profile: critical always; otherwise (topic_id is null, or topics empty, or topic_id ∈ topics) and level ≥ level_filter. Capped at `max_items`. Raises `archive_locked` if `p_from < now() - free_archive_days` (10 minutes grace) and not premium.
+- `app_personal_edition(p_from timestamptz default null, p_to timestamptz default null) → Feed`.
+  - **No arguments (what the app calls): the reader's newest edition** — the newest edition the reader gets
+    (`app_reader_own_editions`, below) within 8 days, plus the special updates since the edition before it; with
+    `edition_id` and `next_edition`.
+  - With a window (older app builds): the reader's editions (language + track) with `published_at` in `(p_from, p_to]`
+    (defaults: the last 24 hours). Raises `archive_locked` if `p_from < now() - free_archive_days` (10 minutes grace) and
+    not premium.
+  - Either way filtered by the profile: critical always; otherwise (topic_id is null, or topics empty, or topic_id ∈
+    topics) and level ≥ level_filter. Capped at `max_items`.
+- **Which editions a reader gets** (`app_reader_track`, `app_edition_is_own`; also who gets an edition's push): youth →
+  `teens`, one a day → `daily`, two or three a day → `classic`; when the language has had no edition of that track for
+  14 days, the fallback (teens → classic, daily → classic, classic → daily). Three a day: all of them. Two a day: morning
+  and evening (on a day that ends in Shabbat or Yom Tov: morning and noon). One a day on a classic fallback: the last
+  edition of the day.
 - `app_edition_view(p_edition_id bigint) → Feed` — one edition as published (no topic/level filter, no cap), in the edition's own language/audience. Same premium check on its `published_at`. For a special update its items are in `special` and `items` is `[]`. Unknown id → `not_found`.
 - `app_archive(p_days int default 30) → jsonb` (array, newest first) — the reader's editions (language + per-day track, plus special updates): `{ id: string, edition_type, title, published_at, item_count, has_audio, read, locked, track }` (`locked` = older than the free window and not premium).
 - `app_search(p_query text, p_limit int default 30) → FeedItem[]` — premium only (raises `premium_required`): items of the reader's editions whose headline or body contains the query (case-insensitive, at least 2 characters, newest first, `p_limit` ≤ 100).
@@ -248,7 +273,19 @@ type Feed = {
   | `+972500000002` | `demo_family_phone`, `demo_family_email` | `demo-family@tamzit-app.test` | family owner (manual subscription); one invited member `+972500000003` |
 
   The demo accounts are shared by everyone testing: expect other testers to change their preferences.
-- `POST /functions/v1/app-push-special` — called by the trigger `app_tamzit_editions_push` (pg_net, AFTER INSERT on `tamzit_editions`) once per distinct special update (`edition_type = 'special_update'`; the engine's duplicate rows are claimed once in `app_push_log`); checks the `x-app-secret` header; ignores editions older than 6 hours. Sends to devices whose profile has `special_push = true` and the edition's language, except readers whose `shabbat_city_id` is inside an `app_rest_periods` period right now; the text is the first item only when `headline_in_push` is on. Expo tokens (`ExponentPushToken[…]`) go through the Expo push service; native FCM tokens through FCM HTTP v1, inactive until the `FCM_SERVICE_ACCOUNT` secret exists. Push data: `{ type: 'special', edition_id: '<id>', url: 'tamzit://edition/<id>' }`.
+- `POST /functions/v1/app-push` — called by the trigger `app_tamzit_editions_push` (pg_net, AFTER INSERT on
+  `tamzit_editions`) once per published edition: one per distinct special update (`special:<language>:<md5(text)>`) and
+  one per regular edition (`edition:<language>:<track>:<slot>:<edition_date>`), claimed in `app_push_log` so the engine's
+  duplicate rows push once; checks the `x-app-secret` header; ignores editions older than 6 hours.
+  - Special update: devices whose profile has `special_push = true` and the edition's language; title "עדכון מיוחד";
+    Android channel `special`; data `{ type: 'special', edition_id: '<id>', url: 'tamzit://edition/<id>' }`.
+  - Regular edition: devices whose profile has `edition_push = true` and who get this edition
+    (`app_push_edition_targets`); title "<edition name> מוכנה" ("מהדורת הבוקר מוכנה"); channel `editions`; data
+    `{ type: 'edition', url: 'tamzit://' }`.
+  - Never to readers whose `shabbat_city_id` is inside an `app_rest_periods` period right now; the text is the first item
+    only when `headline_in_push` is on. Expo tokens go through the Expo push service; native FCM tokens through FCM HTTP v1,
+    inactive until the `FCM_SERVICE_ACCOUNT` secret exists (and the app is built with `google-services.json`).
+  - The app no longer schedules local notifications at the reader's times.
 
 ## Rest periods (Shabbat / Yom Tov times)
 
