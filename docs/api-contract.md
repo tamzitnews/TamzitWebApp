@@ -274,7 +274,16 @@ type Feed = {
   | `+972500000002` | `demo_family_phone`, `demo_family_email` | `demo-family@tamzit-app.test` | family owner (manual subscription); one invited member `+972500000003` |
 
   The demo accounts are shared by everyone testing: expect other testers to change their preferences.
-- Ad images from Whapi (step of `app-media-sync`, `supabase/functions/app-media-sync/whapi.ts`; secret `WHAPI_TOKEN`,
+- `POST /functions/v1/app-whapi` — Whapi's webhook (messages.post of the sending number; header `x-whapi-secret` =
+  `app_settings.whapi_webhook_secret`): messages sent by the number or posted in the service's channels
+  (`whapi_channel_ids`) → special updates into `tamzit_editions` (`app_ingest_special`, once per text; they then push,
+  show and are classified) and ad images. Operations with `x-app-secret`: `status`, `connect` (adds this webhook,
+  keeping the existing ones; saves the channels the number administers), `backfill { hours }`, `channels`, `inspect`.
+  No cron: `app-media-sync` and `app-classify` run on inserts; `app_housekeeping()` (hourly, SQL only) starts them only
+  for an English audio copy due for deletion or a failed classification due for a retry.
+- `app_archive`: item counts and titles come from `app_edition_stats` (filled by a trigger when an edition is written);
+  audio is looked up only for editions of the last two days (~80 ms for a month instead of ~430 ms).
+- Ad images from Whapi (step of `app-media-sync`, `supabase/functions/_shared/whapi.ts`; secret `WHAPI_TOKEN`,
   one or more API tokens separated by commas): when `app_ad_images_needed()` lists ads of the last
   `whapi_lookback_hours` without an image, lists the messages the numbers sent since then
   (`GET https://gate.whapi.cloud/messages/list?from_me=true&time_from=…`), matches image captions to ads

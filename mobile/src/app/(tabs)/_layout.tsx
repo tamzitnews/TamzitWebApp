@@ -5,6 +5,7 @@ import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, T } from '@/components/ui';
+import { usePrefetchArchive } from '@/features/archive/useArchive';
 import { GlobalPlayerDock } from '@/features/audio';
 import { useNotificationSync } from '@/lib/notifications';
 import { defineStrings, useStrings } from '@/lib/i18n';
@@ -66,6 +67,7 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
 export default function TabsLayout() {
   // Push token registration, refreshing the edition when a push arrives, notification taps.
   useNotificationSync();
+  usePrefetchArchive();
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => (
         <>

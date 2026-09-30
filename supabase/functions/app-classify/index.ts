@@ -1,5 +1,5 @@
-// POST /functions/v1/app-classify   (pg_cron every 5 minutes, and app_tamzit_editions_classify right after an edition
-// is saved). Header x-app-secret must equal app_settings.push_webhook_secret.
+// POST /functions/v1/app-classify   (app_tamzit_editions_classify right after an edition is saved; app_housekeeping hourly
+// only when a failed item is due for a retry). Header x-app-secret must equal app_settings.push_webhook_secret.
 //
 // Classifies the news items that have no label yet (public.app_label_queue claims them) with Jev, TypeSafe's
 // non-generative decision model (POST https://api.typesafe.ai/v1/systemone, secret TYPESAFE_API_KEY). One request per

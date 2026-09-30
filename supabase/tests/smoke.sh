@@ -263,6 +263,26 @@ SQLEND
   echo "select public.app_ad_images_needed(48) as r" | "$SQL" - > "$TMP/out"
   check "ads without a WhatsApp image are listed for the Whapi step" "isinstance(d[0]['r']['ids'], list) and (d[0]['r']['since'] is not None) == (len(d[0]['r']['ids']) > 0)" "$TMP/out" 200
 
+  echo "== WhatsApp sends (Whapi)"
+  s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-whapi" -H 'Content-Type: application/json' -H 'x-whapi-secret: wrong' -d '{"messages":[]}')
+  check "whapi webhook rejects a wrong secret" "s==403" "$TMP/out" "$s"
+  s=$(call POST "$FN/app-whapi" "$ANON" '{"action":"status"}'); check "whapi operations need the app secret" "s==403" "$TMP/out" "$s"
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+begin;
+create temp table r as select
+  public.app_ingest_special(E'📻 *עדכון מיוחד*\n\nבדיקת עשן: ידיעה שנשלחה בערוץ.', now() - interval '3 hours') as first_id,
+  public.app_is_special_text(E'📻 *תמצית החדשות*\n\nמהדורת בוקר') as edition_is_special;
+create temp table r2 as select public.app_ingest_special(E'📻 *עדכון מיוחד*\n\nבדיקת עשן: ידיעה שנשלחה בערוץ.', now() - interval '3 hours') as second_id;
+select json_build_object(
+  'first', (select first_id from r), 'second', (select second_id from r2), 'edition', (select edition_is_special from r),
+  'row', (select json_build_object('type', edition_type, 'slot', time_slot, 'lang', language) from public.tamzit_editions where id = (select first_id from r)),
+  'pushed', (select count(*) from public.app_push_log where edition_id = (select first_id from r))) as r;
+rollback;
+SQLEND
+  check "a special update sent on WhatsApp is written once, as the engine wrote them (rolled back; too old to push)" "d[0]['r']['first'] and d[0]['r']['second'] is None and d[0]['r']['edition'] is False and d[0]['r']['row']=={'type':'special_update','slot':'עדכון מיוחד','lang':'hebrew'} and d[0]['r']['pushed']==0" "$TMP/out" 200
+  echo "select json_build_object('jobs', (select json_agg(jobname order by jobname) from cron.job where jobname like 'app-%')) as r" | "$SQL" - > "$TMP/out"
+  check "no polling: the only app cron job is the hourly housekeeping check" "d[0]['r']['jobs']==['app-housekeeping']" "$TMP/out" 200
+
   echo "== item classification (Jev; shadow mode unless jev_apply_to_feed)"
   s=$(call POST "$FN/app-classify" "$ANON" '{}'); check "classify function rejects calls without the secret" "s==403" "$TMP/out" "$s"
   s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-classify" -H "Authorization: Bearer $ANON" -H 'Content-Type: application/json' -H "x-app-secret: $SECRET" -d '{}')

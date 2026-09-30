@@ -1,11 +1,19 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useState } from 'react';
 
 import { api } from '@/lib/api';
 import { qk } from '@/lib/queries';
 
 /** How far back the archive reaches; premium readers widen it step by step ("מהדורות קודמות"). */
 const STEPS = [30, 90, 180, 365, 730, 3650] as const;
+
+/** Loads the archive's first page ahead (tabs layout), so the tab opens with its list. */
+export function usePrefetchArchive() {
+  const qc = useQueryClient();
+  useEffect(() => {
+    qc.prefetchQuery({ queryKey: [...qk.archive, STEPS[0]], queryFn: () => api.archive(STEPS[0]) });
+  }, [qc]);
+}
 
 /**
  * The archive list (app_archive), newest first. Starts with 30 days; `loadMore` widens the window

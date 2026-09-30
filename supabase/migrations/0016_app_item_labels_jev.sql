@@ -103,7 +103,8 @@ begin
 end;
 $$;
 
--- Starts app-classify (pg_net; returns at once). Does nothing when jev_enabled is false.
+-- Starts app-classify (pg_net; returns at once). Does nothing when jev_enabled is false. Called when an edition is saved
+-- (app_tamzit_editions_classify) and, for due retries only, by app_housekeeping (0019).
 create or replace function public.app_label_kick() returns void
 language plpgsql security definer set search_path = public as $$
 declare

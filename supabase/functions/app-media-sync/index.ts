@@ -1,5 +1,6 @@
 // POST /functions/v1/app-media-sync
-// Called by public.app_media_kick() (pg_net): after new tamzit_edition_elements rows and every 5 minutes (pg_cron).
+// Called by public.app_media_kick() (pg_net) when something is sent: new tamzit_edition_elements rows (ads, audio);
+// and hourly by public.app_housekeeping() only when an English audio copy is due for deletion (no polling).
 // Header x-app-secret must equal app_settings.push_webhook_secret.
 //
 // 1. Google Drive files the engine attached to editions (ad images; English audio) → copied into the public
@@ -8,11 +9,11 @@
 // 2. Ad links → their preview image (og:image / twitter:image, like WhatsApp) copied to app-media/previews/.
 // 3. Audio copies are removed after a day, so the bucket never fills up (Hebrew and French audio is not copied at
 //    all: the app plays it straight from the engine's public news-audio bucket).
-// 4. Ads without an image yet → the image they went out with on WhatsApp, from Whapi (whapi.ts; needs WHAPI_TOKEN).
+// 4. Ads without an image yet → the image they went out with on WhatsApp, from Whapi (_shared/whapi.ts; WHAPI_TOKEN).
 // The queue lives in app_media / app_link_previews (public.app_media_queue). Responds with a summary.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { adminClient, corsHeaders, env, getSettings, json, settingInt, settingText } from '../_shared/app-common.ts';
-import { syncWhapiAdImages } from './whapi.ts';
+import { syncWhapiAdImages } from '../_shared/whapi.ts';
 
 const BUCKET = 'app-media';
 const MAX_FILE = 60 * 1024 * 1024;
