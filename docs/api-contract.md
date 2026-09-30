@@ -301,7 +301,9 @@ type Feed = {
   importance_confidence, model, …)`; review view `app_item_labels_review`. Body `{ "test": { lang, headline?, text } }`
   classifies one text without storing. Without the secret or with `jev_enabled` false → `{ skipped }`.
   Feed: only when `jev_apply_to_feed` is true, a parsed item's `topic_id` is its most likely label topic, the item gets
-  `topics: string[]` (the topic filter matches any of them), `topic_id` is the main topic, and `level` is `critical`
+  `topics: string[]` (the topic filter matches any of them, except for items whose main topic is in
+  `topics_only_for_choosers` — weather, sports — which need that topic; critical items pass every filter when
+  `critical_for_everyone`), `topic_id` is the main topic, and `level` is `critical`
   when Jev says critical with confidence ≥ `jev_importance_min_confidence`, else `important`; otherwise items are
   unchanged (shadow mode). With `jev_show_labels` too
   (pilot, migration 0018) the item also carries `ai: { topics: string[], importance, confidence }` (Jev's raw answer),

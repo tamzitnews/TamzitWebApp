@@ -263,6 +263,39 @@ SQLEND
   echo "select public.app_ad_images_needed(48) as r" | "$SQL" - > "$TMP/out"
   check "ads without a WhatsApp image are listed for the Whapi step" "isinstance(d[0]['r']['ids'], list) and (d[0]['r']['since'] is not None) == (len(d[0]['r']['ids']) > 0)" "$TMP/out" 200
 
+  echo "== who sees what: weather/sports only for readers who chose them, critical items for everyone (rolled back)"
+  "$SQL" - > "$TMP/out" <<SQLEND
+begin;
+update public.user_preferences set interests = array['world', 'security'], anxiety_level = 'Medium'
+where user_id = '$FREE_ID';
+-- a weather forecast item of the last days
+create temp table w as
+  select l.text_hash, 'e' || e.id || '-' || p.n as item_id
+  from public.app_reader_editions('he', 'general', 3, now() - interval '5 days', now()) e
+  cross join lateral public.app_parse_edition(e.main_text, e.edition_type) p
+  join public.app_item_labels l on l.text_hash = public.app_item_hash('he', p.headline, p.body) and l.main_topic = 'weather'
+  order by e.published_at desc limit 1;
+select set_config('request.jwt.claims', '{"sub":"$FREE_ID","role":"authenticated"}', true);
+set local role authenticated;
+create temp table f1 as select public.app_personal_edition(now() - interval '5 days', now()) j;
+reset role;
+-- the tsunami case: the same weather item, now critical
+update public.app_item_labels set importance = 'critical', importance_confidence = 0.95 where text_hash = (select text_hash from w);
+set local role authenticated;
+create temp table f2 as select public.app_personal_edition(now() - interval '5 days', now()) j;
+reset role;
+select json_build_object(
+  'weather_item', (select item_id from w),
+  'normal_items', (select jsonb_array_length(j -> 'items') from f1),
+  'normal_weather_or_sports', (select count(*) from f1, jsonb_array_elements(f1.j -> 'items') x where x ->> 'topic_id' in ('weather','sports')),
+  'normal_topics', (select json_agg(distinct x ->> 'topic_id') from f1, jsonb_array_elements(f1.j -> 'items') x),
+  'critical_case_has_weather', (select count(*) from f2, jsonb_array_elements(f2.j -> 'items') x where x ->> 'topic_id' = 'weather'),
+  'critical_case_level', (select json_agg(x ->> 'level') from f2, jsonb_array_elements(f2.j -> 'items') x where x ->> 'topic_id' = 'weather')
+) r;
+rollback;
+SQLEND
+  check "a reader without weather/sports sees none of them; the same weather item marked critical reaches them" "d[0]['r']['weather_item'] is None or (d[0]['r']['normal_weather_or_sports']==0 and d[0]['r']['critical_case_has_weather']==1 and d[0]['r']['critical_case_level']==['critical'])" "$TMP/out" 200
+
   echo "== WhatsApp sends (Whapi)"
   s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-whapi" -H 'Content-Type: application/json' -H 'x-whapi-secret: wrong' -d '{"messages":[]}')
   check "whapi webhook rejects a wrong secret" "s==403" "$TMP/out" "$s"
