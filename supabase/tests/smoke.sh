@@ -210,7 +210,7 @@ with latest as (
 select coalesce(json_agg(json_build_object(
   'id', l.id, 'lang', l.language, 'type', l.edition_type, 'title', public.app_edition_title(l.main_text),
   'n', (select count(*) from public.app_parse_edition(l.main_text, l.edition_type) p where p.kind = 'news'),
-  'has_good', l.main_text ~ 'ונסיים בטוב|positive note|good note|note positive|bonne note',
+  'has_good', l.main_text ~* 'ונסיים בטוב|positive note|good note|note positive|bonne note',
   'good', (select count(*) from public.app_parse_edition(l.main_text, l.edition_type) p where p.kind = 'good_news'),
   'junk', (select count(*) from public.app_parse_edition(l.main_text, l.edition_type) p
            where p.body ~ '(https?://|link\.mmb|כתיבה:|Author:|Rédaction|לשיתוף עם חברים|תוכן שיווקי|[*•])'))), '[]') as r
@@ -406,7 +406,11 @@ SQLEND
   check "the dashboard answers an operator with people, use, versions and a row per reader" "d[0]['r']['written']==1 and d[0]['r']['people_keys'] is True and d[0]['r']['ads_counted'] is True and d[0]['r']['daily_len']==14 and d[0]['r']['readers_is_array'] is True and d[0]['r']['versions_is_array'] is True" "$TMP/out" 200
   "$SQL" - > "$TMP/out" <<'SQLEND'
 begin;
-do $do$ begin
+do $do$
+declare v_uid uuid := (select user_id from public.user_preferences
+                       where exists (select 1 from auth.users u where u.id = user_id) order by created_at limit 1);
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
   perform public.app_register_device('smoke-token-old', 'android');
   perform public.app_register_device('smoke-token-new', 'android', '0.1.0 (14)', 14);
 end $do$;
