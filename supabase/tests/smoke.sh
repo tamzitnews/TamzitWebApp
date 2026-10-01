@@ -210,12 +210,13 @@ with latest as (
 select coalesce(json_agg(json_build_object(
   'id', l.id, 'lang', l.language, 'type', l.edition_type, 'title', public.app_edition_title(l.main_text),
   'n', (select count(*) from public.app_parse_edition(l.main_text, l.edition_type) p where p.kind = 'news'),
+  'has_good', l.main_text ~ 'ונסיים בטוב|positive note|good note|note positive|bonne note',
   'good', (select count(*) from public.app_parse_edition(l.main_text, l.edition_type) p where p.kind = 'good_news'),
   'junk', (select count(*) from public.app_parse_edition(l.main_text, l.edition_type) p
            where p.body ~ '(https?://|link\.mmb|כתיבה:|Author:|Rédaction|לשיתוף עם חברים|תוכן שיווקי|[*•])'))), '[]') as r
 from latest l;
 SQLEND
-  check "every language/type parses into items, good news and no promo" "len(d[0]['r'])>=6 and all(e['junk']==0 and (e['n']>=1 if e['type']=='special_update' else (e['n']>=3 and e['good']==1 and e['title'])) for e in d[0]['r'])" "$TMP/out" 200
+  check "every language/type parses into items, good news where the edition has it, and no promo" "len(d[0]['r'])>=6 and all(e['junk']==0 and (e['n']>=1 if e['type']=='special_update' else (e['n']>=3 and e['title'] and (e['good']==1 if e['has_good'] else e['good']==0))) for e in d[0]['r'])" "$TMP/out" 200
 
   echo "== settings catalog"
   "$SQL" - > "$TMP/out" <<'SQLEND'
@@ -345,7 +346,7 @@ SQLEND
 begin;
 create temp table flat as select E'📻 *תמצית החדשות*\n*מהדורת בוקר*\nיום ו׳, 1 בינואר · בדיקת עשן\n\n'
   || E'• *כותרת ראשונה של בדיקת העשן* גוף הידיעה הראשונה, שנכתבה בפורמט החדש של תבליטים בלי כותרות פרקים.\n\n'
-  || E'• *כותרת שנייה של בדיקת העשן* גוף הידיעה השנייה, כדי שהמהדורה תכיל יותר מידיעה אחת.\n\n'
+  || E'• *כותרת שנייה של בדיקת העשן* גוף הידיעה השנייה, שנכתב באורך דומה לידיעה אמיתית, כדי שהמהדורה כולה תעבור את אורך המינימום שנדרש כדי להיחשב מהדורה ולא הודעה קצרה.\n\n'
   || E'✓ *לשיתוף עם חברים לוחצים כאן*\nlink.mmb.org.il/share' as t;
 create temp table notice as select E'📻 *תמצית החדשות*\n*מהדורת ערב, יום שישי*, 1 בינואר 1999\n\n'
   || repeat('קוראים יקרים, המהדורה הבאה תישלח במוצאי שבת. ', 12) as t;
@@ -405,8 +406,10 @@ SQLEND
   check "the dashboard answers an operator with people, use, versions and a row per reader" "d[0]['r']['written']==1 and d[0]['r']['people_keys'] is True and d[0]['r']['ads_counted'] is True and d[0]['r']['daily_len']==14 and d[0]['r']['readers_is_array'] is True and d[0]['r']['versions_is_array'] is True" "$TMP/out" 200
   "$SQL" - > "$TMP/out" <<'SQLEND'
 begin;
-create temp table old as select public.app_register_device('smoke-token-old', 'android') as a;
-create temp table new as select public.app_register_device('smoke-token-new', 'android', '0.1.0 (14)', 14) as a;
+do $do$ begin
+  perform public.app_register_device('smoke-token-old', 'android');
+  perform public.app_register_device('smoke-token-new', 'android', '0.1.0 (14)', 14);
+end $do$;
 select json_build_object(
   'kept_version', (select app_version from public.app_devices where push_token = 'smoke-token-new'),
   'kept_build', (select app_build from public.app_devices where push_token = 'smoke-token-new'),
