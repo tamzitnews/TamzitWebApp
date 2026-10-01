@@ -255,6 +255,7 @@ SQLEND
   python3 -c "import json,re; raw=open('$TMP/raw').read(); raw=raw[raw.index('{'):raw.rindex('}')+1]; msg=json.loads(raw).get('message',''); m=re.search(r'SMOKE (\{[^}]*\})', msg); open('$TMP/out','w').write(m.group(1) if m else '{}')"
   check "trigger claims one push per special update and one per regular edition (rolled back)" "d.get('log')==1 and d.get('elog')==1 and d.get('queued')==2" "$TMP/out" 200
   SECRET=$(echo "select value #>> '{}' as v from public.app_settings where key = 'push_webhook_secret'" | "$SQL" - | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['v'])")
+  CONSOLE=$(echo "select value #>> '{}' as v from public.app_settings where key = 'push_console_secret'" | "$SQL" - | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['v'])")
   OLD_SPECIAL=$(echo "select id from public.tamzit_editions where edition_type = 'special_update' order by created_at limit 1" | "$SQL" - | python3 -c "import json,sys; r=json.load(sys.stdin); print(r[0]['id'] if r else 0)")
   s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-push" -H "Authorization: Bearer $ANON" -H 'Content-Type: application/json' -H "x-app-secret: $SECRET" -d "{\"edition_id\":$OLD_SPECIAL}")
   check "push function: secret accepted, old special update not re-pushed" "s==200 and d.get('skipped') is True and d.get('reason')=='too_old'" "$TMP/out" "$s"
@@ -339,6 +340,36 @@ SQLEND
   check "an edition sent on WhatsApp that the engine did not log is written once, with its sponsor ad (rolled back; too old to push)" "d[0]['r']['e1']['kind']=='edition' and d[0]['r']['e1']['id'] and d[0]['r']['e2']['id'] is None and d[0]['r']['row']=={'lang':'hebrew','type':'classic','slot':'ערב','date':'1999-01-01'} and d[0]['r']['from_whapi']==1 and d[0]['r']['a1']['id'] and d[0]['r']['a2']['id'] is None and d[0]['r']['ad_edition'] is True and d[0]['r']['n1']=={} and d[0]['r']['pushed']==0" "$TMP/out" 200
   echo "select json_build_object('jobs', (select json_agg(jobname order by jobname) from cron.job where jobname like 'app-%')) as r" | "$SQL" - > "$TMP/out"
   check "no polling: the only app cron job is the hourly housekeeping check" "d[0]['r']['jobs']==['app-housekeeping']" "$TMP/out" 200
+
+  echo "== messages to readers (the operators' console)"
+  s=$(call POST "$FN/app-push" "$ANON" '{"action":"audience"}')
+  check "the console refuses a reader who is not an operator" "s==403 and d.get('error')=='not_an_operator'" "$TMP/out" "$s"
+  s=$(call POST "$FN/app-push" "$ANON" '{"action":"made_up"}')
+  check "the console refuses an action it does not have" "s==400 and d.get('error')=='unknown_action'" "$TMP/out" "$s"
+  s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-push" -H "Authorization: Bearer $ANON" -H 'Content-Type: application/json' -H "x-app-secret: $CONSOLE" -d '{"action":"broadcast","dry_run":true,"title":"בדיקת עשן","body":"בדיקה, לא נשלח."}')
+  check "a dry run says how many devices would get the message, and sends nothing" "s==200 and d.get('dry_run') is True and 'awake' in d and 'sent' not in d" "$TMP/out" "$s"
+  s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-push" -H "Authorization: Bearer $ANON" -H 'Content-Type: application/json' -H "x-app-secret: $CONSOLE" -d '{"action":"broadcast","dry_run":true,"body":"בדיקה","url":"javascript:alert(1)"}')
+  check "a message link must be http(s)" "s==400 and d.get('error')=='bad_url'" "$TMP/out" "$s"
+  s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-push" -H "Authorization: Bearer $ANON" -H 'Content-Type: application/json' -H "x-app-secret: $CONSOLE" -d '{"edition_id":1}')
+  check "the console secret cannot push an edition" "s==403" "$TMP/out" "$s"
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+begin;
+update public.app_settings set value = '[]'::jsonb where key = 'console_admin_emails';
+create temp table r1 as select public.app_is_console_admin((select id from auth.users order by created_at limit 1)) as none;
+update public.app_settings set value = to_jsonb(array[(select lower(email) from auth.users order by created_at limit 1)])
+  where key = 'console_admin_emails';
+create temp table r0 as select public.app_is_console_admin((select id from auth.users order by created_at limit 1)) as listed;
+update public.app_settings set value = to_jsonb(array['  ' || upper((select email from auth.users order by created_at limit 1)) || ' '])
+  where key = 'console_admin_emails';
+create temp table r2 as select public.app_is_console_admin((select id from auth.users order by created_at limit 1)) as loose;
+select json_build_object(
+  'empty_list_allows_nobody', (select none from r1),
+  'listed_is_operator', (select listed from r0),
+  'case_and_spaces_still_match', (select loose from r2),
+  'me_tells_the_app', pg_get_functiondef('public.app_me'::regproc) like '%is_operator%') as r;
+rollback;
+SQLEND
+  check "only a listed address is an operator (case and spaces ignored), and app_me tells the app" "d[0]['r']['empty_list_allows_nobody'] is False and d[0]['r']['listed_is_operator'] is True and d[0]['r']['case_and_spaces_still_match'] is True and d[0]['r']['me_tells_the_app'] is True" "$TMP/out" 200
 
   echo "== item classification (Jev; shadow mode unless jev_apply_to_feed)"
   s=$(call POST "$FN/app-classify" "$ANON" '{}'); check "classify function rejects calls without the secret" "s==403" "$TMP/out" "$s"

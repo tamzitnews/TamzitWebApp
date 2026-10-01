@@ -5,6 +5,7 @@ import type {
   ArchiveEntry,
   City,
   Community,
+  ConsoleOverview,
   Feed,
   FeedItem,
   Me,
@@ -38,6 +39,11 @@ export const api = {
   archive: (days = 30) => rpc<ArchiveEntry[]>('app_archive', { p_days: days }),
   search: (query: string, limit = 30) => rpc<FeedItem[]>('app_search', { p_query: query, p_limit: limit }),
   saved: () => rpc<FeedItem[]>('app_saved'),
+  /** Operators only: who would get a message now, and what was sent before. */
+  consoleOverview: () => rpc<ConsoleOverview>('app_console_overview'),
+  /** Operators only: sends one notification to the readers' devices. */
+  sendMessage: (m: { title: string; body: string; url?: string; language?: string; skip_shabbat?: boolean }) =>
+    callFunctionAsUser<{ ok: true; id: number; devices: number; sent: number }>('app-push', { action: 'broadcast', ...m }),
   toggleSave: (itemId: string) => rpc<boolean>('app_toggle_save', { p_item_id: itemId }),
   markRead: (editionKey: string) => rpc<void>('app_mark_read', { p_edition_key: editionKey }),
   submitFeedback: (itemId: string, kind: 'helpful' | 'not_helpful' | 'error' | 'question', message?: string) =>
@@ -74,6 +80,26 @@ export const api = {
     >;
   },
 };
+
+/** Calls an edge function as the signed-in reader (the function checks who they are). */
+async function callFunctionAsUser<T>(name: string, body: unknown): Promise<T> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new ApiError('not_authenticated');
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  let json: Record<string, unknown> | null = null;
+  try {
+    json = await res.json();
+  } catch {
+    // non-JSON body
+  }
+  if (!res.ok || json?.error) throw new ApiError(String(json?.error ?? `http_${res.status}`));
+  return json as T;
+}
 
 async function callFunction<T>(name: string, body: unknown): Promise<T> {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {

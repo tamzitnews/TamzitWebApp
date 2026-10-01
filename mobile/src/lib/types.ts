@@ -131,6 +131,26 @@ export type Me = {
   plan: Plan;
   family_role: 'owner' | 'member' | null;
   unread_messages: number;
+  /** May this reader send messages to the readers (Settings → הודעות לקוראים). Absent in older server versions. */
+  is_operator?: boolean;
+};
+
+/** The operators' console: who would get a message now, and what was sent before. */
+export type ConsoleOverview = {
+  devices: number;
+  awake: number;
+  resting: number;
+  by_language: Record<string, number>;
+  history: {
+    id: number;
+    created_at: string;
+    title: string;
+    body: string;
+    url: string | null;
+    language: string | null;
+    devices: number;
+    sent: number;
+  }[];
 };
 
 export type Topic = { id: string; name_he: string; name_en: string; name_fr: string; sort: number; is_default: boolean };

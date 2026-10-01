@@ -330,6 +330,23 @@ type Feed = {
     and answers the counts (`fcm_ok`, `fcm_invalid`, `fcm_error`, `expo_sent`).
   - The app no longer schedules local notifications at the reader's times.
 
+### Messages to readers (the operators' console)
+
+A message an operator writes reaches every device, outside the editions. The screen is in the app (Settings →
+"הודעות לקוראים"), shown when `app_me().is_operator` is true; an account is an operator when its login address is in
+`app_settings.console_admin_emails`.
+
+- `app_console_overview(p_history int default 15) → jsonb` (operators only, else `not_an_operator`) —
+  `{ devices, awake, resting, by_language: {he, en, fr, unknown}, history: [{id, created_at, title, body, url,
+  language, devices, sent}] }`. `awake` leaves out devices whose Shabbat city is resting right now.
+- `POST /functions/v1/app-push` `{ action: 'broadcast', title?, body, url?, language?: 'he'|'en'|'fr', skip_shabbat?
+  (default true), dry_run? }` — as the signed-in operator (`Authorization: Bearer <their token>`) or with
+  `x-app-secret: <push_console_secret>`. `dry_run` answers the audience and sends nothing; a real send answers
+  `{ ok, id, devices, sent, … }` and writes a row to `app_push_broadcasts`. `url` must be http(s) and is appended to
+  the message on its own line (tapping a notification opens the app, so the link is there to be read and copied).
+  `{ action: 'audience' }` and `{ action: 'history', limit? }` read the same numbers for the screen. The console
+  secret cannot push an edition, and the edition secret is not an operator.
+
 ## Rest periods (Shabbat / Yom Tov times)
 
 - `app_rest_periods(city_id → app_cities on delete cascade, starts_at timestamptz, ends_at timestamptz, kind ('shabbat'|'yomtov'), includes_shabbat bool, holiday_name text null; pk(city_id, starts_at))` — candle lighting → havdalah per city, consecutive days merged, Israel vs diaspora by city. Readable by anon and authenticated. Filled by `supabase/scripts/gen_rest_periods.mjs` (server-side; the app ships no calendar library): covers 10 years ahead; re-run whenever a city is added or its coordinates / candle_minutes change. The app downloads now−7d → now+90d for the reader's city and keeps it on the device; offline with no data it falls back to its own sunset calculation for plain Shabbat.

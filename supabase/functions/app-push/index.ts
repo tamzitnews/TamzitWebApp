@@ -1,4 +1,7 @@
-// POST /functions/v1/app-push   { edition_id }   (or { action: 'test', body, title? }: a test message to every device)
+// POST /functions/v1/app-push
+//   { edition_id }                               the engine's push for one edition (needs push_webhook_secret)
+//   { action: 'audience' | 'broadcast' | 'history' }   the operator's console: signed in as a person whose account is
+//        listed in app_settings.console_admin_emails (Authorization: Bearer <their token>), or with push_console_secret
 // Called by the trigger app_tamzit_editions_push (pg_net) once per published edition: one call per distinct special
 // update, and one per regular edition (language, track, slot, day; the engine inserts each edition several times).
 // Header x-app-secret must equal app_settings.push_webhook_secret.
@@ -11,6 +14,10 @@
 // Without anything to send through (e.g. no FCM_SERVICE_ACCOUNT and only native tokens) → 200 { skipped: true }.
 // Texts and the maximum age come from app_settings (push_special_title_<lang>, push_special_body_<lang>,
 // push_edition_body_<lang>, push_max_age_minutes); the constants below are the defaults.
+//
+// The console (a private web page the operator opens) sends one message to every device, or to the devices of one
+// language: audience = how many devices there are, broadcast = send it (dry_run first), history = what was sent
+// (app_push_broadcasts). It authenticates with app_settings.push_console_secret, which cannot push an edition.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { adminClient, corsHeaders, env, getSettings, json, readBody, settingInt, settingText } from '../_shared/app-common.ts';
 
@@ -224,6 +231,82 @@ async function sendExpo(
 
 // --------------------------------------------------------------------------------
 
+/** Cities resting right now (Shabbat / Yom Tov), of those asked about. */
+async function restingCities(db: SupabaseClient, cityIds: string[]): Promise<Set<string>> {
+  if (!cityIds.length) return new Set();
+  const nowIso = new Date().toISOString();
+  const { data } = await db
+    .from('app_rest_periods')
+    .select('city_id')
+    .in('city_id', cityIds)
+    .lte('starts_at', nowIso)
+    .gt('ends_at', nowIso);
+  return new Set((data ?? []).map((r: { city_id: string }) => r.city_id));
+}
+
+/** Sends one message to the given tokens; counts the outcomes per service. */
+async function sendToTokens(
+  tokens: string[],
+  title: string,
+  text: string,
+  data: Record<string, string>,
+  onStage: (s: string) => void,
+): Promise<{ sent: number; invalid: string[]; counts: Record<string, number> }> {
+  const counts: Record<string, number> = {};
+  const invalid: string[] = [];
+  let sent = 0;
+  const expo = tokens.filter(isExpoToken);
+  const native = tokens.filter((t) => !isExpoToken(t));
+  if (expo.length) {
+    const r = await sendExpo(expo.map((to) => ({ to, title, body: text, data })), 'editions');
+    sent += r.sent;
+    invalid.push(...r.invalid);
+    counts.expo_sent = r.sent;
+  }
+  const saRaw = env('FCM_SERVICE_ACCOUNT');
+  if (native.length && !saRaw) counts.fcm_not_configured = native.length;
+  if (native.length && saRaw) {
+    onStage('fcm_service_account');
+    const sa = parseServiceAccount(saRaw);
+    onStage('fcm_oauth');
+    const accessToken = await fcmAccessToken(sa);
+    onStage('fcm_send');
+    for (const t of native) {
+      const r = await sendFcm(sa.project_id, accessToken, t, title, text, data, 'editions');
+      counts[`fcm_${r}`] = (counts[`fcm_${r}`] ?? 0) + 1;
+      if (r === 'ok') sent++;
+      else if (r === 'invalid') invalid.push(t);
+    }
+  }
+  return { sent, invalid, counts };
+}
+
+type Device = { token: string; language: string | null; platform: string | null; shabbat_city_id: string };
+
+/** Every registered device, with its reader's language and Shabbat city (a device without a profile is kept). */
+async function allDevices(db: SupabaseClient): Promise<Device[]> {
+  const { data, error } = await db.from('app_devices').select('push_token, platform, user_preferences(language, shabbat_city_id)');
+  if (error) throw error;
+  const seen = new Set<string>();
+  const out: Device[] = [];
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    const token = r.push_token as string;
+    if (!token || seen.has(token)) continue;
+    seen.add(token);
+    const p = (Array.isArray(r.user_preferences) ? r.user_preferences[0] : r.user_preferences) as Record<string, unknown> | null;
+    out.push({
+      token,
+      language: (p?.language as string) ?? null,
+      platform: (r.platform as string) ?? null,
+      shabbat_city_id: (p?.shabbat_city_id as string) ?? 'jerusalem',
+    });
+  }
+  return out;
+}
+
+const tally = (values: (string | null)[]) =>
+  values.reduce<Record<string, number>>((acc, v) => ({ ...acc, [v ?? 'unknown']: (acc[v ?? 'unknown'] ?? 0) + 1 }), {});
+
 async function specialTargets(db: SupabaseClient, language: string): Promise<Target[]> {
   const { data, error } = await db
     .from('app_devices')
@@ -260,44 +343,92 @@ Deno.serve(async (req) => {
   const db = adminClient();
   try {
     const settings = await getSettings(db, [
-      'push_webhook_secret', 'push_max_age_minutes',
+      'push_webhook_secret', 'push_console_secret', 'push_max_age_minutes',
       ...(['he', 'en', 'fr'] as const).flatMap((l) => [`push_special_title_${l}`, `push_special_body_${l}`, `push_edition_body_${l}`]),
     ]);
     const expected = settingText(settings, 'push_webhook_secret', '');
-    if (!expected || req.headers.get('x-app-secret') !== expected) return json({ error: 'forbidden' }, 403);
-    authorized = true;
+    const consoleSecret = settingText(settings, 'push_console_secret', '');
+    const given = req.headers.get('x-app-secret') ?? '';
+    const isAdmin = !!expected && given === expected;
+    let isConsole = !!consoleSecret && given === consoleSecret;
 
     const body = await readBody(req);
+    const action = typeof body.action === 'string' ? body.action : '';
+    if (action && !['audience', 'broadcast', 'history'].includes(action)) return json({ error: 'unknown_action' }, 400);
 
-    // A test message to every registered device, for operators: { action: 'test', body, title? }.
-    if (body.action === 'test') {
-      stage = 'test';
-      const text = String(body.body ?? '').trim().slice(0, 300);
-      if (!text) return json({ error: 'missing_body' }, 400);
-      const title = String(body.title ?? '').trim().slice(0, 100) || 'תמצית החדשות';
-      const { data: devs, error: dErr } = await db.from('app_devices').select('push_token');
-      if (dErr) throw dErr;
-      const tokens = [...new Set((devs ?? []).map((d: { push_token: string }) => d.push_token).filter(Boolean))];
-      const data = { type: 'test', url: 'tamzit://' };
-      const counts: Record<string, number> = {};
-      const expo = tokens.filter(isExpoToken);
-      const native = tokens.filter((t) => !isExpoToken(t));
-      if (expo.length) counts.expo_sent = (await sendExpo(expo.map((to) => ({ to, title, body: text, data })), 'editions')).sent;
-      const saRaw = env('FCM_SERVICE_ACCOUNT');
-      if (native.length && !saRaw) counts.fcm_not_configured = native.length;
-      if (native.length && saRaw) {
-        stage = 'fcm_service_account';
-        const sa = parseServiceAccount(saRaw);
-        stage = 'fcm_oauth';
-        const accessToken = await fcmAccessToken(sa);
-        stage = 'fcm_send';
-        for (const t of native) {
-          const r = await sendFcm(sa.project_id, accessToken, t, title, text, data, 'editions');
-          counts[`fcm_${r}`] = (counts[`fcm_${r}`] ?? 0) + 1;
+    // The console signs in as a person (the app's own login): their account must be listed in console_admin_emails.
+    if (!isAdmin && !isConsole && action) {
+      stage = 'console_login';
+      const jwt = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
+      if (jwt) {
+        const { data: who } = await db.auth.getUser(jwt);
+        if (who?.user) {
+          const { data: ok } = await db.rpc('app_is_console_admin', { p_user: who.user.id });
+          isConsole = ok === true;
         }
       }
-      console.log('app-push test', { devices: tokens.length, ...counts });
-      return json({ ok: true, devices: tokens.length, ...counts });
+      if (!isConsole) return json({ error: 'not_an_operator' }, 403);
+    }
+    if (!isAdmin && !isConsole) return json({ error: 'forbidden' }, 403);
+    authorized = true;
+    if (!action && !isAdmin) return json({ error: 'forbidden' }, 403); // the console cannot push an edition
+
+    // A test message to every registered device, for operators: { action: 'test', body, title? }.
+    // --- the operator's console ------------------------------------------------
+    if (action === 'audience' || action === 'broadcast') {
+      stage = action;
+      const devices = await allDevices(db);
+      const language = ['he', 'en', 'fr'].includes(String(body.language)) ? String(body.language) : null;
+      const chosen = language ? devices.filter((d) => d.language === language) : devices;
+      const skipShabbat = body.skip_shabbat !== false;
+      const resting = skipShabbat ? await restingCities(db, [...new Set(chosen.map((d) => d.shabbat_city_id))]) : new Set<string>();
+      const awake = chosen.filter((d) => !resting.has(d.shabbat_city_id));
+      const audience = {
+        devices: devices.length,
+        matching: chosen.length,
+        awake: awake.length,
+        skipped_shabbat: chosen.length - awake.length,
+        by_language: tally(devices.map((d) => d.language)),
+        by_platform: tally(devices.map((d) => d.platform)),
+      };
+      if (action === 'audience') return json({ ok: true, ...audience });
+
+      const title = String(body.title ?? '').trim().slice(0, 100) || 'תמצית החדשות';
+      const text = String(body.body ?? '').trim().slice(0, 500);
+      const url = String(body.url ?? '').trim().slice(0, 300);
+      if (!text) return json({ error: 'missing_body' }, 400);
+      if (url && !/^https?:\/\//.test(url)) return json({ error: 'bad_url' }, 400);
+      const message = url ? `${text}\n${url}` : text;
+      if (body.dry_run) return json({ ok: true, dry_run: true, message, title, ...audience });
+
+      const { sent, invalid, counts } = await sendToTokens(
+        awake.map((d) => d.token),
+        title,
+        message,
+        { type: 'message', url: 'tamzit://' },
+        (st) => (stage = st),
+      );
+      stage = 'log';
+      if (invalid.length) await db.from('app_devices').delete().in('push_token', invalid);
+      const result = { ...counts, skipped_shabbat: audience.skipped_shabbat, removed_tokens: invalid.length };
+      const { data: id } = await db.rpc('app_log_broadcast', {
+        p_title: title, p_body: text, p_url: url || null, p_language: language,
+        p_devices: awake.length, p_sent: sent, p_result: result,
+      });
+      console.log('app-push broadcast', { id, devices: awake.length, sent, ...counts });
+      return json({ ok: true, id, devices: awake.length, sent, ...result });
+    }
+
+    if (action === 'history') {
+      stage = 'history';
+      const limit = Math.min(Math.max(Number(body.limit) || 20, 1), 100);
+      const { data, error } = await db
+        .from('app_push_broadcasts')
+        .select('id, created_at, title, body, url, language, devices, sent, result')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      return json({ ok: true, broadcasts: data ?? [] });
     }
 
     const editionId = Number(body.edition_id);
@@ -334,15 +465,7 @@ Deno.serve(async (req) => {
 
     // Shabbat / Yom Tov: no pushes for readers whose city is resting now.
     stage = 'rest_periods';
-    const nowIso = new Date().toISOString();
-    const cityIds = [...new Set(targets.map((t) => t.shabbat_city_id))];
-    const { data: resting } = await db
-      .from('app_rest_periods')
-      .select('city_id')
-      .in('city_id', cityIds)
-      .lte('starts_at', nowIso)
-      .gt('ends_at', nowIso);
-    const restingCities = new Set((resting ?? []).map((r: { city_id: string }) => r.city_id));
+    const resting = await restingCities(db, [...new Set(targets.map((t) => t.shabbat_city_id))]);
 
     const kind = payload.track === 'daily' ? 'daily' : String(payload.kind ?? 'evening');
     const title = special
@@ -361,7 +484,7 @@ Deno.serve(async (req) => {
     let shabbat = 0;
     const invalid: string[] = [];
     const awake = (t: Target) => {
-      if (restingCities.has(t.shabbat_city_id)) {
+      if (resting.has(t.shabbat_city_id)) {
         shabbat++;
         return false;
       }

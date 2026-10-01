@@ -5,11 +5,14 @@ import {
   Feather,
   FileText,
   Flame,
+  Gauge,
   Globe,
+  GraduationCap,
   HeartHandshake,
   Info,
   LogIn,
   MapPin,
+  Megaphone,
   MessageSquareText,
   SlidersHorizontal,
   Star,
@@ -17,8 +20,6 @@ import {
   Type,
   UserRound,
   Users,
-  Gauge,
-  GraduationCap,
 } from 'lucide-react-native';
 import { memo } from 'react';
 import { Pressable, View } from 'react-native';
@@ -209,6 +210,12 @@ export function SettingsHome() {
         <ListGroup label={s.gAccount}>
           <ListRow icon={UserRound} title={s.personal} onPress={go('/settings/account')} />
           <ListRow icon={MessageSquareText} title={s.messages} value={unread ? s.unread(unread) : undefined} onPress={go('/messages')} last />
+        </ListGroup>
+      ) : null}
+
+      {data?.is_operator ? (
+        <ListGroup label={s.gOperator}>
+          <ListRow icon={Megaphone} title={s.console} onPress={go('/settings/messages')} last />
         </ListGroup>
       ) : null}
 
