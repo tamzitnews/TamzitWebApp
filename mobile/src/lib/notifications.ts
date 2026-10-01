@@ -1,11 +1,14 @@
 // Notifications are sent by the server: when an edition is published, every device whose reader gets
 // that edition (by frequency and track) receives a push on the "editions" channel
 // (data { type: 'edition', url }), and a special update arrives on the "special" channel
-// (data { type: 'special', edition_id, url }). Nothing is sent during Shabbat or Yom Tov.
+// (data { type: 'special', edition_id, url }). A message from the operators arrives on the "editions"
+// channel as well (data { type: 'message', url }), and its url may be an ordinary web address.
+// Nothing is sent during Shabbat or Yom Tov.
 //
 // The app only keeps the Android channels, asks for permission, registers the device push token (FCM)
 // for the signed-in reader, and reacts to pushes: one that arrives while the app is open refreshes the
-// edition at once, and a tap opens it (a special update opens its own edition page).
+// edition at once, and a tap opens it (a special update opens its own edition page, and a message whose
+// url is a web address opens that address in the browser).
 //
 // Earlier builds scheduled local "edition is ready" notifications (ids "tz-edition:…", up to 7 days
 // ahead); they are cancelled once per launch. Push registration fails gracefully when
@@ -14,7 +17,7 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
-import { AppState, Platform } from 'react-native';
+import { AppState, Linking, Platform } from 'react-native';
 
 import { usePrefs } from '@/state/prefs';
 import { useSession } from '@/state/session';
@@ -224,6 +227,12 @@ function pushEditionId(data: PushData): string | null {
   return null;
 }
 
+/** A web address the push wants opened on a tap (a message from the operators), or null. */
+function pushWebUrl(data: PushData): string | null {
+  const url = typeof data.url === 'string' ? data.url.trim() : '';
+  return /^https?:\/\//i.test(url) ? url : null;
+}
+
 /** A new edition or special update was published: fetch the personal edition (and archive) again. */
 function refreshEditions(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: ['personal'] });
@@ -284,14 +293,19 @@ export function useNotificationSync() {
     return () => sub.remove();
   }, [qc]);
 
-  // Tapping a notification: a special update opens its edition, a new edition opens the edition tab.
+  // Tapping a notification: a message with a link opens the link, a special update opens its edition,
+  // a new edition opens the edition tab.
   const response = useLastResponse();
   useEffect(() => {
     if (!response || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
     refreshEditions(qc);
-    const editionId = pushEditionId(pushData(response.notification));
+    const data = pushData(response.notification);
+    const editionId = pushEditionId(data);
+    const webUrl = pushWebUrl(data);
     if (editionId) router.push({ pathname: '/edition/[id]', params: { id: editionId } });
     else router.navigate('/(tabs)');
+    // after the app itself is up, so closing the browser comes back to the edition
+    if (webUrl) Linking.openURL(webUrl).catch(() => {});
     Notifications.clearLastNotificationResponseAsync().catch(() => {});
   }, [response, qc]);
 }

@@ -405,7 +405,7 @@ Deno.serve(async (req) => {
         awake.map((d) => d.token),
         title,
         message,
-        { type: 'message', url: 'tamzit://' },
+        { type: 'message', url: url || 'tamzit://' }, // a web address here: the app opens it on a tap
         (st) => (stage = st),
       );
       stage = 'log';
