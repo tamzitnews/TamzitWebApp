@@ -330,6 +330,27 @@ type Feed = {
     and answers the counts (`fcm_ok`, `fcm_invalid`, `fcm_error`, `expo_sent`).
   - The app no longer schedules local notifications at the reader's times.
 
+### Usage events and the dashboard
+
+What readers do is recorded so the operators can see whether the app serves anyone. No location, no device
+fingerprint, no screen-by-screen trail.
+
+- `app_track(p_events jsonb) → int` (signed-in readers) — a batch of up to 50 `{name, props, at, session_id,
+  app_version, platform}`; returns how many were kept. Only these names are accepted (anything else is dropped):
+  `app_open`, `session_end`, `edition_open`, `edition_read`, `item_open`, `audio_play`, `audio_done`, `ad_click`,
+  `item_save`, `item_unsave`, `item_share`, `item_feedback`, `archive_open`, `search`, `settings_change`,
+  `push_open`, `tour_step`, `tour_done`, `tour_skip`, `premium_view`, `donate_view`. `props` over 2KB is dropped.
+  The app batches them (lib/analytics.ts) and sends on background, every 20 events or every 20 seconds.
+- `app_analytics(p_days int default 30) → jsonb` (operators only, else `not_an_operator`) — `{ days, generated_at,
+  people: { registered, legacy_profiles, with_device, devices, active_today, active_7d, active_30d, new_7d, at_risk,
+  churned, never_opened }, versions: [{version, build, devices}], events: {name: count}, daily: [{day, people, opens,
+  editions}] (14 days), engagement: { audio_plays, audio_listeners, ad_clicks, ad_clickers, saves, shares, searches,
+  editions_read, minutes, tour_done, tour_skip }, readers: [{name, joined, lang, audience, plan, devices, version,
+  push, seen, opens, editions, minutes, audio, ads, saved}] }`. `at_risk`: 7–14 days without opening; `churned`: more
+  than 14. Events older than `app_settings.events_keep_days` (180) are deleted hourly.
+- `app_register_device(p_token, p_platform, p_app_version?, p_app_build?)` — the installed version is kept on the
+  device row (the two-argument version of this function no longer exists).
+
 ### Messages to readers (the operators' console)
 
 A message an operator writes reaches every device, outside the editions. The screen is in the app (Settings →

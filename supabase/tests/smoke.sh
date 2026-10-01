@@ -341,6 +341,80 @@ SQLEND
   echo "select json_build_object('jobs', (select json_agg(jobname order by jobname) from cron.job where jobname like 'app-%')) as r" | "$SQL" - > "$TMP/out"
   check "no polling: the only app cron job is the hourly housekeeping check" "d[0]['r']['jobs']==['app-housekeeping']" "$TMP/out" 200
 
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+begin;
+create temp table flat as select E'📻 *תמצית החדשות*\n*מהדורת בוקר*\nיום ו׳, 1 בינואר · בדיקת עשן\n\n'
+  || E'• *כותרת ראשונה של בדיקת העשן* גוף הידיעה הראשונה, שנכתבה בפורמט החדש של תבליטים בלי כותרות פרקים.\n\n'
+  || E'• *כותרת שנייה של בדיקת העשן* גוף הידיעה השנייה, כדי שהמהדורה תכיל יותר מידיעה אחת.\n\n'
+  || E'✓ *לשיתוף עם חברים לוחצים כאן*\nlink.mmb.org.il/share' as t;
+create temp table notice as select E'📻 *תמצית החדשות*\n*מהדורת ערב, יום שישי*, 1 בינואר 1999\n\n'
+  || repeat('קוראים יקרים, המהדורה הבאה תישלח במוצאי שבת. ', 12) as t;
+select json_build_object(
+  'flat_items', (select count(*) from flat, public.app_parse_edition(flat.t, 'classic') p where p.kind = 'news'),
+  'flat_heads', (select count(*) from flat, public.app_parse_edition(flat.t, 'classic') p where coalesce(p.headline, '') <> ''),
+  'flat_junk', (select count(*) from flat, public.app_parse_edition(flat.t, 'classic') p
+                where p.body ~ '(link\.mmb|לשיתוף עם חברים|[*•])'),
+  'classic_untouched', (select count(*) from public.app_parse_edition(
+      (select main_text from public.tamzit_editions where edition_type = 'classic' and language = 'hebrew'
+       and main_text like '%📌%' order by created_at desc limit 1), 'classic') p where p.kind = 'news') >= 3,
+  'notice_not_ingested', (select public.app_ingest_edition((select t from notice), '1999-01-01 16:00+00')) is null,
+  'flat_ingested', (select public.app_ingest_edition((select t from flat), '1999-01-01 06:00+00')) is not null) as r;
+rollback;
+SQLEND
+  check "an edition of bullets with no section headings parses into items with headlines, and a notice is never written" "d[0]['r']['flat_items']==2 and d[0]['r']['flat_heads']==2 and d[0]['r']['flat_junk']==0 and d[0]['r']['classic_untouched'] is True and d[0]['r']['notice_not_ingested'] is True and d[0]['r']['flat_ingested'] is True" "$TMP/out" 200
+
+  echo "== usage events and the dashboard"
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+begin;
+create temp table me as select user_id from public.user_preferences
+  where exists (select 1 from auth.users u where u.id = user_id) order by created_at limit 1;
+create temp table asme as select set_config('request.jwt.claims',
+  json_build_object('sub', (select user_id from me), 'role', 'authenticated')::text, true) as x;
+create temp table w as select public.app_track(jsonb_build_array(
+  jsonb_build_object('name', 'app_open', 'props', jsonb_build_object('cold', true), 'session_id', 'smoke', 'app_version', '0.0.0-smoke', 'platform', 'android'),
+  jsonb_build_object('name', 'audio_play', 'props', jsonb_build_object('id', 'x'), 'session_id', 'smoke'),
+  jsonb_build_object('name', 'session_end', 'props', jsonb_build_object('seconds', 60), 'session_id', 'smoke'),
+  jsonb_build_object('name', 'not_a_real_event', 'props', '{}'::jsonb),
+  jsonb_build_object('name', 'app_open', 'props', jsonb_build_object('big', repeat('x', 4000)))
+)) as n from asme;
+create temp table denied as select public.app_analytics(7) as j from (
+  select set_config('request.jwt.claims', json_build_object('sub', (select user_id from me), 'role', 'authenticated')::text, true)) z;
+rollback;
+SQLEND
+  check "a reader's own events are written, unknown names and oversized props are dropped, and a reader cannot read the dashboard" "'not_an_operator' in open('$TMP/out').read()" "$TMP/out" 200
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+begin;
+update public.app_settings set value = to_jsonb(array[(select lower(email) from auth.users order by created_at limit 1)])
+  where key = 'console_admin_emails';
+create temp table asop as select set_config('request.jwt.claims',
+  json_build_object('sub', (select id from auth.users order by created_at limit 1), 'role', 'authenticated')::text, true) as x;
+create temp table n as select public.app_track(jsonb_build_array(
+  jsonb_build_object('name', 'ad_click', 'props', jsonb_build_object('element_id', 1), 'session_id', 'smoke2'),
+  jsonb_build_object('name', 'nope')
+)) as c from asop;
+create temp table a as select public.app_analytics(7) as j from asop;
+select json_build_object(
+  'written', (select c from n),
+  'people_keys', (select array(select jsonb_object_keys((select j from a) -> 'people')) @> array['registered','churned','at_risk']),
+  'ads_counted', (((select j from a) -> 'engagement' ->> 'ad_clicks')::int) >= 1,
+  'daily_len', jsonb_array_length((select j from a) -> 'daily'),
+  'readers_is_array', jsonb_typeof((select j from a) -> 'readers') = 'array',
+  'versions_is_array', jsonb_typeof((select j from a) -> 'versions') = 'array') as r;
+rollback;
+SQLEND
+  check "the dashboard answers an operator with people, use, versions and a row per reader" "d[0]['r']['written']==1 and d[0]['r']['people_keys'] is True and d[0]['r']['ads_counted'] is True and d[0]['r']['daily_len']==14 and d[0]['r']['readers_is_array'] is True and d[0]['r']['versions_is_array'] is True" "$TMP/out" 200
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+begin;
+create temp table old as select public.app_register_device('smoke-token-old', 'android') as a;
+create temp table new as select public.app_register_device('smoke-token-new', 'android', '0.1.0 (14)', 14) as a;
+select json_build_object(
+  'kept_version', (select app_version from public.app_devices where push_token = 'smoke-token-new'),
+  'kept_build', (select app_build from public.app_devices where push_token = 'smoke-token-new'),
+  'old_build_still_works', exists (select 1 from public.app_devices where push_token = 'smoke-token-old')) as r;
+rollback;
+SQLEND
+  check "a device registers with its installed version, and an older build still registers without one" "d[0]['r']['kept_version']=='0.1.0 (14)' and d[0]['r']['kept_build']==14 and d[0]['r']['old_build_still_works'] is True" "$TMP/out" 200
+
   echo "== messages to readers (the operators' console)"
   s=$(call POST "$FN/app-push" "$ANON" '{"action":"audience"}')
   check "the console refuses a reader who is not an operator" "s==403 and d.get('error')=='not_an_operator'" "$TMP/out" "$s"

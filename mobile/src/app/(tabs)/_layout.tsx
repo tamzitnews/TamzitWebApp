@@ -1,11 +1,12 @@
 import { Tabs } from 'expo-router';
 import { Bookmark, History, Newspaper, Settings, type LucideIcon } from 'lucide-react-native';
-import type { ComponentProps } from 'react';
+import { useEffect, type ComponentProps } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, T } from '@/components/ui';
 import { usePrefetchArchive } from '@/features/archive/useArchive';
+import { startAnalytics, track } from '@/lib/analytics';
 import { GlobalPlayerDock } from '@/features/audio';
 import { useNotificationSync } from '@/lib/notifications';
 import { defineStrings, useStrings } from '@/lib/i18n';
@@ -20,6 +21,9 @@ const S = defineStrings({
 type BottomTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
 const ICONS: Record<string, LucideIcon> = { index: Newspaper, archive: History, saved: Bookmark, settings: Settings };
+
+/** Which tab the reader moved to (the edition tab is counted by the edition itself). */
+const TAB_EVENT: Record<string, 'archive_open'> = { archive: 'archive_open' };
 
 /** The design-system TabBar: four fixed tabs, active in brand with a sky bar above it, no badges. */
 function TabBar({ state, navigation }: BottomTabBarProps) {
@@ -49,7 +53,11 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
             accessibilityLabel={label}
             onPress={() => {
               const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-              if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+              if (!focused && !event.defaultPrevented) {
+                const name = TAB_EVENT[route.name];
+                if (name) track(name);
+                navigation.navigate(route.name);
+              }
             }}
             style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 }}>
             {focused ? <View style={{ position: 'absolute', top: 0, width: 28, height: 3, backgroundColor: c.sky }} /> : null}
@@ -68,6 +76,7 @@ export default function TabsLayout() {
   // Push token registration, refreshing the edition when a push arrives, notification taps.
   useNotificationSync();
   usePrefetchArchive();
+  useEffect(() => startAnalytics(), []);
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => (
         <>

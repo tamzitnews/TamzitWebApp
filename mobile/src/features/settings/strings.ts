@@ -37,6 +37,7 @@ export const SETTINGS_S = defineStrings({
     messages: 'הודעות מהעורכים',
     gOperator: 'ניהול',
     console: 'הודעות לקוראים',
+    analytics: 'נתוני שימוש',
     aboutApp: 'אודות תמצית החדשות',
     licenses: 'רישיונות',
     // values
@@ -106,6 +107,7 @@ export const SETTINGS_S = defineStrings({
     messages: 'Messages from the editors',
     gOperator: 'Operations',
     console: 'Messages to readers',
+    analytics: 'Usage',
     aboutApp: 'About Tamzit',
     licenses: 'Licenses',
     topicsCount: (n: number) => `${n} selected`,
@@ -173,6 +175,7 @@ export const SETTINGS_S = defineStrings({
     messages: 'Messages de la rédaction',
     gOperator: 'Administration',
     console: 'Messages aux lecteurs',
+    analytics: 'Utilisation',
     aboutApp: 'À propos de Tamzit',
     licenses: 'Licences',
     topicsCount: (n: number) => `${n} choisis`,

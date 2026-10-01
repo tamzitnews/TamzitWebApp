@@ -7,6 +7,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, type ReactElement } from
 import { FlatList, Platform, RefreshControl, View, type ListRenderItem, type ViewToken } from 'react-native';
 
 import { NewsItem } from '@/components/news/NewsItem';
+import { track as trackEvent } from '@/lib/analytics';
 import { MiniPlayer, useTrack } from '@/features/audio/MiniPlayer';
 import { useAudioStore } from '@/features/audio/store';
 import { useItemActions } from '@/features/items/actions';
@@ -174,6 +175,11 @@ export function EditionFeed({
     useItemStore.getState().remember(allItems(feed));
   }, [feed]);
 
+  useEffect(() => {
+    openedAt.current = Date.now();
+    trackEvent('edition_open', { key: readKey, type });
+  }, [readKey, type]);
+
   // Stable handlers so memoized rows don't re-render when the screen does.
   const actions = useItemActions();
   const actionsRef = useRef(actions);
@@ -201,15 +207,18 @@ export function EditionFeed({
   // Mark as read once the end of the edition is on screen.
   const readKeyRef = useRef(readKey);
   readKeyRef.current = readKey;
+  const openedAt = useRef(0);
   const markRead = useCallback(() => {
     const key = readKeyRef.current;
     if (markedRead.has(key)) return;
     markedRead.add(key);
+    const seconds = openedAt.current ? Math.round((Date.now() - openedAt.current) / 1000) : undefined;
+    trackEvent('edition_read', { key, seconds, items: count });
     api
       .markRead(key)
       .then(() => qc.invalidateQueries({ queryKey: qk.archive }))
       .catch(() => markedRead.delete(key));
-  }, [qc]);
+  }, [qc, count]);
   const markReadRef = useRef(markRead);
   markReadRef.current = markRead;
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken<Row>[] }) => {

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 
+import { track } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { useItemStore } from '@/lib/itemStore';
 import { qk } from '@/lib/queries';
@@ -28,12 +29,17 @@ export function useItemActions() {
   });
 
   return {
-    toggleSave: (item: FeedItem) => toggleSave.mutate(item),
+    toggleSave: (item: FeedItem) => {
+      track(item.saved ? 'item_unsave' : 'item_save', { item_id: item.id });
+      toggleSave.mutate(item);
+    },
     share: (item: FeedItem) => {
+      track('item_share', { item_id: item.id });
       useItemStore.getState().remember([item]);
       router.push({ pathname: '/share/[itemId]', params: { itemId: item.id } });
     },
     feedback: (item: FeedItem) => {
+      track('item_feedback', { item_id: item.id });
       useItemStore.getState().remember([item]);
       router.push({ pathname: '/feedback/[itemId]', params: { itemId: item.id } });
     },

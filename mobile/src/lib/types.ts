@@ -135,6 +135,58 @@ export type Me = {
   is_operator?: boolean;
 };
 
+/** The operators' dashboard: how the app is used (public.app_analytics). */
+export type Analytics = {
+  days: number;
+  generated_at: string;
+  people: {
+    registered: number;
+    legacy_profiles: number;
+    with_device: number;
+    devices: number;
+    active_today: number;
+    active_7d: number;
+    active_30d: number;
+    new_7d: number;
+    at_risk: number;
+    churned: number;
+    never_opened: number;
+  };
+  versions: { version: string; build: number | null; devices: number }[];
+  events: Record<string, number>;
+  daily: { day: string; people: number; opens: number; editions: number }[];
+  engagement: {
+    audio_plays: number;
+    audio_listeners: number;
+    ad_clicks: number;
+    ad_clickers: number;
+    saves: number;
+    shares: number;
+    searches: number;
+    editions_read: number;
+    minutes: number;
+    tour_done: number;
+    tour_skip: number;
+  };
+  readers: {
+    name: string;
+    joined: string;
+    lang: string;
+    audience: string;
+    plan: string;
+    devices: number;
+    version: string | null;
+    push: boolean;
+    seen: string | null;
+    opens: number;
+    editions: number;
+    minutes: number;
+    audio: number;
+    ads: number;
+    saved: number;
+  }[];
+};
+
 /** The operators' console: who would get a message now, and what was sent before. */
 export type ConsoleOverview = {
   devices: number;

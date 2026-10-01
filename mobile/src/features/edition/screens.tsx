@@ -13,6 +13,7 @@ import { usePrefs } from '@/state/prefs';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space } from '@/theme/tokens';
 import { OfflineBanner } from './Closing';
+import { Tour } from '@/features/onboarding/Tour';
 import { EditionFeed } from './EditionFeed';
 import { EditionSkeleton } from './EditionSkeleton';
 import { editionDate, editionName, engineEditionType } from './editionMeta';
@@ -66,6 +67,7 @@ export function EditionTabScreen() {
   return (
     <Screen header={<AppBar title={s.appTitle} actions={<TextSizeButton />} />}>
       {body}
+      <Tour ready={!!ed.feed} />
     </Screen>
   );
 }

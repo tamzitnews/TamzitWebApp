@@ -5,6 +5,7 @@ import type {
   ArchiveEntry,
   City,
   Community,
+  Analytics,
   ConsoleOverview,
   Feed,
   FeedItem,
@@ -39,6 +40,10 @@ export const api = {
   archive: (days = 30) => rpc<ArchiveEntry[]>('app_archive', { p_days: days }),
   search: (query: string, limit = 30) => rpc<FeedItem[]>('app_search', { p_query: query, p_limit: limit }),
   saved: () => rpc<FeedItem[]>('app_saved'),
+  /** Usage events, in one batch (see lib/analytics.ts). Returns how many the server kept. */
+  track: (events: unknown[]) => rpc<number>('app_track', { p_events: events }),
+  /** Operators only: everything the usage dashboard shows. */
+  analytics: (days = 30) => rpc<Analytics>('app_analytics', { p_days: days }),
   /** Operators only: who would get a message now, and what was sent before. */
   consoleOverview: () => rpc<ConsoleOverview>('app_console_overview'),
   /** Operators only: sends one notification to the readers' devices. */
@@ -51,8 +56,13 @@ export const api = {
   updateProfile: (patch: PrefsPatch) => rpc<Profile>('app_update_profile', { p_patch: patch }),
   familyInvite: (phone: string, name: string) => rpc<unknown>('app_family_invite', { p_phone: phone, p_name: name }),
   familyRemove: (phone: string) => rpc<void>('app_family_remove', { p_phone: phone }),
-  registerDevice: (token: string, platform: 'android' | 'ios') =>
-    rpc<void>('app_register_device', { p_token: token, p_platform: platform }),
+  registerDevice: (token: string, platform: 'android' | 'ios', appVersion?: string, appBuild?: number) =>
+    rpc<void>('app_register_device', {
+      p_token: token,
+      p_platform: platform,
+      ...(appVersion ? { p_app_version: appVersion } : {}),
+      ...(appBuild ? { p_app_build: appBuild } : {}),
+    }),
   recordDonation: (amount: number, frequency: 'once' | 'monthly') =>
     rpc<string>('app_record_donation', { p_amount: amount, p_frequency: frequency }),
 

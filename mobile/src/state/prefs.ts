@@ -31,6 +31,7 @@ export type PrefsState = {
   shabbatCityId: string;
   onboardingDone: boolean; // local draft finished (before account)
   topicsTouched: boolean; // user edited topics (otherwise defaults are applied)
+  tourDone: boolean; // the welcome cards were seen (or skipped) on this device
   set: (patch: Partial<Omit<PrefsState, 'set' | 'reset'>>) => void;
   reset: () => void;
 };
@@ -48,6 +49,7 @@ const initial = {
   textScale: 1,
   shabbatCityId: 'jerusalem',
   onboardingDone: false,
+  tourDone: false,
   topicsTouched: false,
 };
 

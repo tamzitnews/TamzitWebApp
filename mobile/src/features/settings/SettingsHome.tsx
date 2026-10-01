@@ -1,6 +1,7 @@
 import { router, type Href } from 'expo-router';
 import {
   Bell,
+  ChartColumn,
   Clock,
   Feather,
   FileText,
@@ -215,7 +216,8 @@ export function SettingsHome() {
 
       {data?.is_operator ? (
         <ListGroup label={s.gOperator}>
-          <ListRow icon={Megaphone} title={s.console} onPress={go('/settings/messages')} last />
+          <ListRow icon={Megaphone} title={s.console} onPress={go('/settings/messages')} />
+          <ListRow icon={ChartColumn} title={s.analytics} onPress={go('/settings/analytics')} last />
         </ListGroup>
       ) : null}
 

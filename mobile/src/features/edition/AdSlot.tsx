@@ -1,6 +1,8 @@
 import { Image, type ImageLoadEventData } from 'expo-image';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+
+import { track } from '@/lib/analytics';
 import { ExternalLink } from 'lucide-react-native';
 import { memo, useCallback, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, View, type AccessibilityActionEvent, type ViewStyle } from 'react-native';
@@ -46,8 +48,9 @@ export const AdSlot = memo(function AdSlot({ ad }: { ad: Ad }) {
   const host = useMemo(() => hostOf(href), [href]);
 
   const open = useCallback(() => {
+    track('ad_click', { element_id: ad.id, host: href ? href.replace(/^https?:\/\//, '').split('/')[0] : undefined });
     if (href) WebBrowser.openBrowserAsync(href).catch(() => {});
-  }, [href]);
+  }, [ad.id, href]);
   const removeAds = useCallback(() => router.push('/premium'), []);
   const onAccessibilityAction = useCallback(
     (e: AccessibilityActionEvent) => {

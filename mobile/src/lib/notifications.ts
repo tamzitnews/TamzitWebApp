@@ -19,6 +19,7 @@ import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { AppState, Linking, Platform } from 'react-native';
 
+import { appBuild, appVersion, track } from './analytics';
 import { usePrefs } from '@/state/prefs';
 import { useSession } from '@/state/session';
 import { api } from './api';
@@ -157,7 +158,7 @@ async function registerToken(token: string, force = false) {
   if (registering === key || (!force && registeredFor === key)) return;
   registering = key;
   try {
-    await api.registerDevice(token, Platform.OS === 'ios' ? 'ios' : 'android');
+    await api.registerDevice(token, Platform.OS === 'ios' ? 'ios' : 'android', appVersion, appBuild);
     registeredFor = key;
   } catch {
     // network / server error: retried on the next foreground
@@ -302,6 +303,7 @@ export function useNotificationSync() {
     const data = pushData(response.notification);
     const editionId = pushEditionId(data);
     const webUrl = pushWebUrl(data);
+    track('push_open', { type: typeof data.type === 'string' ? data.type : undefined, link: !!webUrl });
     if (editionId) router.push({ pathname: '/edition/[id]', params: { id: editionId } });
     else router.navigate('/(tabs)');
     // after the app itself is up, so closing the browser comes back to the edition

@@ -7,6 +7,7 @@ import { FlatList, Keyboard, ScrollView, View, type ListRenderItem } from 'react
 import { AppBar, Button, Chip, EmptyState, ErrorState, Icon, Loading, Screen, T } from '@/components/ui';
 import { LiveNewsItem } from '@/features/saved/LiveNewsItem';
 import { useStableItemActions } from '@/features/saved/useStableItemActions';
+import { track } from '@/lib/analytics';
 import { useAppConfig } from '@/lib/config';
 import { useStrings } from '@/lib/i18n';
 import { useItemStore } from '@/lib/itemStore';
@@ -67,6 +68,7 @@ export function SearchScreen() {
     if (t.length < minChars) return;
     setInstant(text);
     addRecent(t);
+    track('search', { length: t.length });
     Keyboard.dismiss();
   }, [text, minChars, addRecent]);
 

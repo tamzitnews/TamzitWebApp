@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { useStrings } from '@/lib/i18n';
+import { track } from '@/lib/analytics';
 import { getNotificationPermission, type PermissionState } from '@/lib/notifications';
 import { qk, useMe, useUpdateProfile } from '@/lib/queries';
 import type { Me, PrefsPatch, Profile } from '@/lib/types';
@@ -96,6 +97,7 @@ export function useSaveProfile() {
 
   const save = useCallback(
     async (patch: PrefsPatch) => {
+      for (const key of Object.keys(patch)) track('settings_change', { key });
       if (!signedIn) {
         setPrefs(patchToPrefs(patch));
         setState('saved');

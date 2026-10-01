@@ -4,6 +4,8 @@
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer, type AudioStatus } from 'expo-audio';
 import { create } from 'zustand';
 
+import { track as trackEvent } from '@/lib/analytics';
+
 export type Track = {
   id: string;
   url: string;
@@ -61,6 +63,7 @@ let intentAt = 0;
 function onStatus(st: AudioStatus) {
   const cur = useAudioStore.getState();
   if (st.didJustFinish) {
+    trackEvent('audio_done', { id: cur.track?.id, seconds: Math.round(cur.duration || 0) });
     // Done: unload, so the dock leaves the other tabs (the edition tab still offers the audio).
     useAudioStore.getState().stop();
     player?.seekTo(0).catch(() => {});
@@ -107,6 +110,7 @@ export const useAudioStore = create<AudioState>((set, get) => ({
   },
 
   play: async (track) => {
+    trackEvent('audio_play', { id: track.id, resumed: get().track?.id === track.id });
     await ensureMode();
     const p = ensurePlayer();
     if (get().track?.id !== track.id) {
