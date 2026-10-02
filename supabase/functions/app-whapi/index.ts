@@ -2,7 +2,7 @@
 //  - Whapi's webhook (event messages.post of each sending number; header x-whapi-secret = app_settings.whapi_webhook_secret):
 //    every message the service sends → _shared/whapi.ts handleAll: special updates, and editions the engine did not
 //    log, into tamzit_editions (they then push, show in the app and are classified), ads and their images. Always 200
-//    so that Whapi does not retry.
+//    so that Whapi does not retry. Messages to the test groups (app_settings.whapi_test_chat_ids) are skipped.
 //  - Operations (header x-app-secret = app_settings.push_webhook_secret), body { action }:
 //      status    each number: channel health and its webhooks (URL, events; header names only, never values)
 //      connect   adds this function to each number's webhooks (keeps the existing ones) with the secret header, and
@@ -11,7 +11,7 @@
 //      channels / inspect   read-only views of the channels and of what was sent (for checks; `full` → whole texts)
 // Needs the WHAPI_TOKEN secret.
 import { adminClient, corsHeaders, env, getSettings, json, readBody, settingText } from '../_shared/app-common.ts';
-import { handleAll, listSent, messageText, ourChannels, whapi, whapiTokens, type WhapiMessage } from '../_shared/whapi.ts';
+import { handleAll, listSent, messageText, ourChannels, sentScope, whapi, whapiTokens, type WhapiMessage } from '../_shared/whapi.ts';
 
 type Webhook = { url?: string; events?: { type?: string; method?: string }[]; mode?: string; headers?: Record<string, string> };
 
@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     try {
       const body = await readBody(req);
       const messages = (Array.isArray(body.messages) ? body.messages : []) as WhapiMessage[];
-      const summary = messages.length ? await handleAll(db, messages, supabaseUrl, { channels: await ourChannels(db) }) : {};
+      const summary = messages.length ? await handleAll(db, messages, supabaseUrl, await sentScope(db)) : {};
       if (Object.keys(summary).length) console.log('app-whapi', summary);
       return json({ ok: true, ...summary });
     } catch (e) {
@@ -156,7 +156,8 @@ Deno.serve(async (req) => {
     if (body.action === 'backfill') {
       const hours = Math.min(Math.max(Number(body.hours) || 24, 1), 24 * 14);
       const since = Math.floor(Date.now() / 1000 - hours * 3600);
-      const channels = await ourChannels(db);
+      const scope = await sentScope(db);
+      const channels = scope.channels;
       const summary: Record<string, number> = {};
       for (const token of tokens) {
         const messages = await listSent(token, since);
@@ -168,7 +169,7 @@ Deno.serve(async (req) => {
             if ((m.timestamp ?? 0) >= since) messages.push({ ...m, chat_id: m.chat_id ?? id });
           }
         }
-        const s = await handleAll(db, messages, supabaseUrl, { channels });
+        const s = await handleAll(db, messages, supabaseUrl, scope);
         for (const [k, v] of Object.entries(s)) summary[k] = (summary[k] ?? 0) + v;
       }
       return json({ ok: true, hours, channels: channels.size, ...summary });

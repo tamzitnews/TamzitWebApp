@@ -96,13 +96,27 @@ export type Outcome =
   | 'ad_image_saved'
   | 'ad_image_known'
   | 'other'
+  | 'test'
   | 'failed';
-export type Scope = { channels: Set<string>; onlyAds?: Set<number> };
+// ignore: chats where what the numbers send is a test (app_settings.whapi_test_chat_ids)
+export type Scope = { channels: Set<string>; ignore?: Set<string>; onlyAds?: Set<number> };
 
 /** The service's WhatsApp channels (app_settings.whapi_channel_ids). */
 export async function ourChannels(db: SupabaseClient): Promise<Set<string>> {
   const { data } = await db.from('app_settings').select('value').eq('key', 'whapi_channel_ids').maybeSingle();
   return new Set(Array.isArray(data?.value) ? (data.value as string[]) : []);
+}
+
+/** Test groups (app_settings.whapi_test_chat_ids): what a number sends there is a test, never an edition, ad or update. */
+export async function testChats(db: SupabaseClient): Promise<Set<string>> {
+  const { data } = await db.from('app_settings').select('value').eq('key', 'whapi_test_chat_ids').maybeSingle();
+  return new Set(Array.isArray(data?.value) ? (data.value as string[]).map((x) => String(x).trim()) : []);
+}
+
+/** Both lists a handler needs. */
+export async function sentScope(db: SupabaseClient): Promise<Scope> {
+  const [channels, ignore] = await Promise.all([ourChannels(db), testChats(db)]);
+  return { channels, ignore };
 }
 
 /**
@@ -113,6 +127,7 @@ export async function ourChannels(db: SupabaseClient): Promise<Set<string>> {
  */
 export async function handleSent(db: SupabaseClient, m: WhapiMessage, supabaseUrl: string, scope: Scope): Promise<Outcome> {
   const onlyAds = scope.onlyAds;
+  if (m.chat_id && scope.ignore?.has(m.chat_id)) return 'test';
   if (m.from_me !== true && !(m.chat_id && scope.channels.has(m.chat_id))) return 'other';
   const text = messageText(m);
   if (!text) return 'other';
