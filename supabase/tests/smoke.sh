@@ -218,6 +218,26 @@ from latest l;
 SQLEND
   check "every language/type parses into items, good news where the edition has it, and no promo" "len(d[0]['r'])>=6 and all(e['junk']==0 and (e['n']>=1 if e['type']=='special_update' else (e['n']>=3 and e['title'] and (e['good']==1 if e['has_good'] else e['good']==0))) for e in d[0]['r'])" "$TMP/out" 200
 
+  echo "== the engine's duplicates (it writes every edition a few times, a row per WhatsApp group)"
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+with langs as (select unnest(array['he', 'en', 'fr']) as c),
+w as (select l.c, x.* from langs l cross join lateral public.app_editions_window(l.c, now() - interval '4 days', now()) x),
+k as (select c, edition_type, time_slot, edition_date, md5(main_text) as h, count(*) as n from w group by 1, 2, 3, 4, 5),
+raw as (select language, edition_type, time_slot, edition_date, md5(main_text) as h, count(*) as n
+        from public.tamzit_editions
+        where edition_date >= (now() at time zone 'Asia/Jerusalem')::date - 4
+        group by 1, 2, 3, 4, 5)
+select json_build_object(
+  'raw_groups_written_more_than_once', (select count(*) from raw where n > 1),
+  'raw_max_copies', (select coalesce(max(n), 0) from raw),
+  'window_rows', (select count(*) from w),
+  'window_max_per_edition', (select coalesce(max(n), 0) from k),
+  'reader_max_per_edition', (select coalesce(max(n), 0) from (
+     select count(*) as n from public.app_reader_editions('he', 'general', 3, now() - interval '4 days', now())
+      group by edition_type, time_slot, edition_date, md5(main_text)) q)) as r;
+SQLEND
+  check "the same edition written several times reaches the reader once" "d[0]['r']['window_rows']>=1 and d[0]['r']['window_max_per_edition']<=1 and d[0]['r']['reader_max_per_edition']<=1" "$TMP/out" 200
+
   echo "== settings catalog"
   "$SQL" - > "$TMP/out" <<'SQLEND'
 select json_build_object(
@@ -324,21 +344,26 @@ create temp table k as select
   (select row_to_json(x) from public.app_edition_of_text(E'📻 *Israel News Highlights*\n*Morning Edition: Wednesday*') x) as en_morning,
   (select row_to_json(x) from public.app_edition_of_text(E'📻 *L''essentiel de l''actualité*\n*Édition du soir: samedi*') x) as fr_evening,
   (select (x).language from public.app_edition_of_text(E'📻 *עדכון מיוחד*\n\nבדיקה') x) as special_lang;
-create temp table e1 as select public.app_ingest_sent(E'📻 *תמצית החדשות*\n*מהדורת ערב, יום שישי, בדיקת עשן*, 1 בינואר 1999\n\n•   •   •\n\n📌 *_בדיקה:_*\n• ידיעה ראשונה של בדיקת העשן, שנשלחה בוואטסאפ ולא נרשמה על ידי המנוע, כדי לוודא שהיא נקלטת פעם אחת בלבד ובשפה הנכונה.\n\n• ידיעה שנייה של בדיקת העשן, שנשלחה באותה הודעה, כדי שהטקסט יהיה באורך של מהדורה אמיתית ולא של הודעה קצרה.\n\n•   •   •\n\nכתיבה: בדיקה.', '1999-01-01 16:00+00', 'smoke') as j;
-create temp table e2 as select public.app_ingest_sent((select main_text from public.tamzit_editions where id = ((select j from e1) ->> 'id')::bigint), '1999-01-01 16:10+00') as j;
-create temp table a1 as select public.app_ingest_sent(E'> המהדורה בחסות:\n\n*בדיקת עשן* - מודעת חסות לבדיקה בלבד.\nhttps://example.org/smoke', '1999-01-01 16:02+00') as j;
-create temp table a2 as select public.app_ingest_sent(E'> המהדורה בחסות:\n\n*בדיקת עשן* - מודעת חסות לבדיקה בלבד.\nhttps://example.org/smoke', '1999-01-01 16:03+00') as j;
-create temp table n1 as select public.app_ingest_sent(E'*קוראים יקרים,*\nהמהדורה הבאה תישלח מחר.', '1999-01-01 16:04+00') as j;
+-- the slot hours have their own check below; here the window is opened so the test runs at any hour (rolled back)
+update public.app_settings set value = '{"morning": [0, 24], "noon": [0, 24], "evening": [0, 24], "daily": [0, 24]}'::jsonb
+ where key = 'edition_slot_hours';
+create temp table e1 as select public.app_ingest_sent(E'📻 *תמצית החדשות*\n*מהדורת ערב, יום שישי, בדיקת עשן*\n\n•   •   •\n\n📌 *_בדיקה:_*\n• ידיעה ראשונה של בדיקת העשן, שנשלחה בוואטסאפ ולא נרשמה על ידי המנוע, כדי לוודא שהיא נקלטת פעם אחת בלבד ובשפה הנכונה.\n\n• ידיעה שנייה של בדיקת העשן, שנשלחה באותה הודעה, כדי שהטקסט יהיה באורך של מהדורה אמיתית ולא של הודעה קצרה.\n\n•   •   •\n\nכתיבה: בדיקה.', now() - interval '3 minutes', 'smoke') as j;
+create temp table e2 as select public.app_ingest_sent((select main_text from public.app_whapi_pending where id = ((select j from e1) ->> 'parked')::bigint), now() - interval '2 minutes') as j;
+create temp table a1 as select public.app_ingest_sent(E'> המהדורה בחסות:\n\n*בדיקת עשן* - מודעת חסות לבדיקה בלבד.\nhttps://example.org/smoke', now() - interval '2 minutes') as j;
+create temp table a2 as select public.app_ingest_sent(E'> המהדורה בחסות:\n\n*בדיקת עשן* - מודעת חסות לבדיקה בלבד.\nhttps://example.org/smoke', now() - interval '1 minute') as j;
+create temp table n1 as select public.app_ingest_sent(E'*קוראים יקרים,*\nהמהדורה הבאה תישלח מחר.', now() - interval '1 minute') as j;
 select json_build_object('k', (select row_to_json(k) from k),
   'e1', (select j from e1), 'e2', (select j from e2), 'a1', (select j from a1), 'a2', (select j from a2), 'n1', (select j from n1),
-  'row', (select json_build_object('lang', language, 'type', edition_type, 'slot', time_slot, 'date', edition_date) from public.tamzit_editions where id = ((select j from e1) ->> 'id')::bigint),
-  'from_whapi', (select count(*) from public.app_whapi_editions where edition_id = ((select j from e1) ->> 'id')::bigint),
-  'ad_edition', (select edition_id from public.tamzit_edition_elements where id = ((select j from a1) ->> 'id')::bigint) = ((select j from e1) ->> 'id')::bigint,
-  'pushed', (select count(*) from public.app_push_log where edition_id = ((select j from e1) ->> 'id')::bigint)) as r;
+  'pending', (select json_build_object('lang', language, 'type', edition_type, 'slot', time_slot,
+                                       'today', edition_date = (now() at time zone 'Asia/Jerusalem')::date,
+                                       'ad', ad_text is not null, 'waiting', done_at is null, 'edition', edition_id)
+              from public.app_whapi_pending where id = ((select j from e1) ->> 'parked')::bigint),
+  'pushed', (select count(*) from public.app_push_log l
+             where l.created_at > now() - interval '1 minute' and l.key like 'edition:hebrew:classic:evening:%')) as r;
 rollback;
 SQLEND
   check "edition headers are read as the engine names them (Friday notice first, daily, English, French)" "d[0]['r']['k']['he_evening']=={'language':'hebrew','edition_type':'classic','time_slot':'ערב'} and d[0]['r']['k']['he_friday']=={'language':'hebrew','edition_type':'classic','time_slot':'צהריים'} and d[0]['r']['k']['he_daily']['edition_type']=='daily' and d[0]['r']['k']['en_morning']=={'language':'english','edition_type':'classic','time_slot':'בוקר'} and d[0]['r']['k']['fr_evening']['language']=='french' and d[0]['r']['k']['special_lang'] is None" "$TMP/out" 200
-  check "an edition sent on WhatsApp that the engine did not log is written once, with its sponsor ad (rolled back; too old to push)" "d[0]['r']['e1']['kind']=='edition' and d[0]['r']['e1']['id'] and d[0]['r']['e2']['id'] is None and d[0]['r']['row']=={'lang':'hebrew','type':'classic','slot':'ערב','date':'1999-01-01'} and d[0]['r']['from_whapi']==1 and d[0]['r']['a1']['id'] and d[0]['r']['a2']['id'] is None and d[0]['r']['ad_edition'] is True and d[0]['r']['n1']=={} and d[0]['r']['pushed']==0" "$TMP/out" 200
+  check "an edition sent on WhatsApp is parked with its sponsor ad, neither of them twice, and nothing is written yet (rolled back)" "d[0]['r']['e1']['kind']=='edition' and d[0]['r']['e1']['id'] is None and d[0]['r']['e1']['parked'] and d[0]['r']['e2']['parked'] is None and d[0]['r']['a1']['kind']=='ad' and d[0]['r']['a1']['id'] is None and d[0]['r']['a1']['parked']==d[0]['r']['e1']['parked'] and d[0]['r']['a2']['parked'] is None and d[0]['r']['n1']=={} and d[0]['r']['pending']=={'lang':'hebrew','type':'classic','slot':'ערב','today':True,'ad':True,'waiting':True,'edition':None} and d[0]['r']['pushed']==0" "$TMP/out" 200
   echo "select json_build_object('jobs', (select json_agg(jobname order by jobname) from cron.job where jobname like 'app-%')) as r" | "$SQL" - > "$TMP/out"
   check "no polling: the only app cron job is the hourly housekeeping check" "d[0]['r']['jobs']==['app-housekeeping']" "$TMP/out" 200
 
@@ -373,7 +398,15 @@ create temp table body as select E'📻 *תמצית החדשות לנוער*\n*�
   || E'• ידיעה שנייה של אותה בדיקה, גם היא באורך סביר לגמרי, כדי שהבדיקה תהיה נאמנה למה שקורה במציאות ולא תיפול על אורך הטקסט.\n\n'
   || E'📌 *_מהמתרחש בארץ:_*\n• ידיעה שלישית, שמוסיפה עוד קצת אורך ועוד פרק, כדי שהמהדורה תיראה כמו מהדורה ולא כמו הודעה.\n' as t;
 create temp table night as select public.app_ingest_edition((select t from body), (current_date + time '01:11') at time zone 'Asia/Jerusalem') as parked;
+create temp table hours as select json_build_array(
+  public.app_slot_hour_ok('classic', 'בוקר', (current_date + time '09:20') at time zone 'Asia/Jerusalem'),
+  public.app_slot_hour_ok('classic', 'בוקר', (current_date + time '01:11') at time zone 'Asia/Jerusalem'),
+  public.app_slot_hour_ok('classic', 'ערב',  (current_date + time '21:15') at time zone 'Asia/Jerusalem')) as a;
+-- the hour has had its check: from here the window is opened, so the rest of the test runs at any hour of the day
+update public.app_settings set value = '{"morning": [0, 24], "noon": [0, 24], "evening": [0, 24], "daily": [0, 24]}'::jsonb
+ where key = 'edition_slot_hours';
 create temp table parked as select public.app_ingest_edition((select t from body), now() - interval '2 minutes') as id;
+create temp table ad as select public.app_ingest_sent(E'> המהדורה בחסות:\n\n*בדיקת עשן לנוער* - מודעת חסות לבדיקה בלבד.\nhttps://example.org/smoke-teens', now() - interval '1 minute') as j;
 create temp table early as select public.app_ingest_due_editions() as n;
 update public.app_whapi_pending set due_at = now() - interval '1 minute' where done_at is null;
 create temp table due as select public.app_ingest_due_editions() as n;
@@ -382,17 +415,20 @@ update public.app_whapi_pending set due_at = now() - interval '1 minute' where d
 create temp table again_due as select public.app_ingest_due_editions() as n;
 select json_build_object(
   'night_refused', (select parked from night) is null,
-  'hour_window', json_build_array(public.app_slot_hour_ok('classic', 'בוקר', (current_date + time '09:20') at time zone 'Asia/Jerusalem'),
-                                  public.app_slot_hour_ok('classic', 'בוקר', (current_date + time '01:11') at time zone 'Asia/Jerusalem'),
-                                  public.app_slot_hour_ok('classic', 'ערב', (current_date + time '21:15') at time zone 'Asia/Jerusalem')),
+  'hour_window', (select a from hours),
   'parked', (select id from parked) is not null,
+  'ad_parked', ((select j from ad) ->> 'parked')::bigint = (select id from parked),
   'nothing_before_the_wait', (select n from early),
   'written_when_due', (select n from due),
   'second_not_written', (select n from again_due),
+  'edition_has_its_ad', (select count(*) from public.tamzit_edition_elements el
+                          where el.edition_id = (select edition_id from public.app_whapi_pending
+                                                 where outcome = 'written' and edition_type = 'teens')
+                            and el.element_type = 'ad' and el.content_text like '%בדיקת עשן לנוער%'),
   'outcomes', (select json_agg(outcome order by id) from public.app_whapi_pending where edition_type = 'teens')) as r;
 rollback;
 SQLEND
-  check "an edition seen on WhatsApp waits for the engine, is written once the wait is over, and is never taken at an impossible hour" "d[0]['r']['night_refused'] is True and d[0]['r']['hour_window']==[True,False,True] and d[0]['r']['parked'] is True and d[0]['r']['nothing_before_the_wait']==0 and d[0]['r']['written_when_due']==1 and d[0]['r']['second_not_written']==0 and d[0]['r']['outcomes']==['written','engine_wrote_it']" "$TMP/out" 200
+  check "an edition seen on WhatsApp waits for the engine, is written once the wait is over with the sponsor ad that waited with it, and is never taken at an impossible hour" "d[0]['r']['night_refused'] is True and d[0]['r']['hour_window']==[True,False,True] and d[0]['r']['parked'] is True and d[0]['r']['ad_parked'] is True and d[0]['r']['nothing_before_the_wait']==0 and d[0]['r']['written_when_due']==1 and d[0]['r']['edition_has_its_ad']==1 and d[0]['r']['second_not_written']==0 and d[0]['r']['outcomes']==['written','engine_wrote_it']" "$TMP/out" 200
 
   echo "== usage events and the dashboard"
   "$SQL" - > "$TMP/out" <<'SQLEND'
