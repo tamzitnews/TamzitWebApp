@@ -341,7 +341,8 @@ fingerprint, no screen-by-screen trail.
   `item_save`, `item_unsave`, `item_share`, `item_feedback`, `archive_open`, `search`, `settings_change`,
   `push_open`, `tour_step`, `tour_done`, `tour_skip`, `premium_view`, `donate_view`. `props` over 2KB is dropped.
   The app batches them (lib/analytics.ts) and sends on background, every 20 events or every 20 seconds.
-- `app_analytics(p_days int default 30) → jsonb` (operators only, else `not_an_operator`) — `{ days, generated_at,
+- `app_analytics(p_days int default 30) → jsonb` (operators, or the project's own connection — the Supabase SQL
+  editor and the service key: `select jsonb_pretty(public.app_analytics(30));`. Anyone else: `not_an_operator`) — `{ days, generated_at,
   people: { registered, legacy_profiles, with_device, devices, active_today, active_7d, active_30d, new_7d, at_risk,
   churned, never_opened }, versions: [{version, build, devices}], events: {name: count}, daily: [{day, people, opens,
   editions}] (14 days), engagement: { audio_plays, audio_listeners, ad_clicks, ad_clickers, saves, shares, searches,
