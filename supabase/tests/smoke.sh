@@ -364,6 +364,36 @@ rollback;
 SQLEND
   check "an edition of bullets with no section headings parses into items with headlines, and a notice is never written" "d[0]['r']['flat_items']==2 and d[0]['r']['flat_heads']==2 and d[0]['r']['flat_junk']==0 and d[0]['r']['classic_untouched'] is True and d[0]['r']['notice_not_ingested'] is True and d[0]['r']['flat_ingested'] is True" "$TMP/out" 200
 
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+begin;
+update public.app_settings set value = 'true'::jsonb where key = 'whatsapp_editions_fallback';
+update public.app_settings set value = '20'::jsonb where key = 'whatsapp_edition_delay_minutes';
+create temp table body as select E'📻 *תמצית החדשות לנוער*\n*מהדורת בוקר, בדיקת עשן*, 9 בינואר 1999\n\n'
+  || E'📌 *_ביטחון:_*\n• ידיעה ראשונה של בדיקת העשן, שנכתבה כדי שהמהדורה תהיה ארוכה מספיק ותתפרק לשתי ידיעות לפחות, בדיוק כמו מהדורה אמיתית שמגיעה מהמנוע או מוואטסאפ.\n\n'
+  || E'• ידיעה שנייה של אותה בדיקה, גם היא באורך סביר לגמרי, כדי שהבדיקה תהיה נאמנה למה שקורה במציאות ולא תיפול על אורך הטקסט.\n\n'
+  || E'📌 *_מהמתרחש בארץ:_*\n• ידיעה שלישית, שמוסיפה עוד קצת אורך ועוד פרק, כדי שהמהדורה תיראה כמו מהדורה ולא כמו הודעה.\n' as t;
+create temp table night as select public.app_ingest_edition((select t from body), (current_date + time '01:11') at time zone 'Asia/Jerusalem') as parked;
+create temp table parked as select public.app_ingest_edition((select t from body), now() - interval '2 minutes') as id;
+create temp table early as select public.app_ingest_due_editions() as n;
+update public.app_whapi_pending set due_at = now() - interval '1 minute' where done_at is null;
+create temp table due as select public.app_ingest_due_editions() as n;
+create temp table again as select public.app_ingest_edition((select t from body) || E'\n• ידיעה נוספת שמגיעה אחרי שהמהדורה כבר נכתבה, כדי לוודא שלא נכתבת מהדורה שנייה לאותו מועד.\n', now() - interval '1 minute') as id;
+update public.app_whapi_pending set due_at = now() - interval '1 minute' where done_at is null;
+create temp table again_due as select public.app_ingest_due_editions() as n;
+select json_build_object(
+  'night_refused', (select parked from night) is null,
+  'hour_window', json_build_array(public.app_slot_hour_ok('classic', 'בוקר', (current_date + time '09:20') at time zone 'Asia/Jerusalem'),
+                                  public.app_slot_hour_ok('classic', 'בוקר', (current_date + time '01:11') at time zone 'Asia/Jerusalem'),
+                                  public.app_slot_hour_ok('classic', 'ערב', (current_date + time '21:15') at time zone 'Asia/Jerusalem')),
+  'parked', (select id from parked) is not null,
+  'nothing_before_the_wait', (select n from early),
+  'written_when_due', (select n from due),
+  'second_not_written', (select n from again_due),
+  'outcomes', (select json_agg(outcome order by id) from public.app_whapi_pending where edition_type = 'teens')) as r;
+rollback;
+SQLEND
+  check "an edition seen on WhatsApp waits for the engine, is written once the wait is over, and is never taken at an impossible hour" "d[0]['r']['night_refused'] is True and d[0]['r']['hour_window']==[True,False,True] and d[0]['r']['parked'] is True and d[0]['r']['nothing_before_the_wait']==0 and d[0]['r']['written_when_due']==1 and d[0]['r']['second_not_written']==0 and d[0]['r']['outcomes']==['written','engine_wrote_it']" "$TMP/out" 200
+
   echo "== usage events and the dashboard"
   "$SQL" - > "$TMP/out" <<'SQLEND'
 begin;
