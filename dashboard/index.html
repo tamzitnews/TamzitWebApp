@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>נתוני שימוש · תמצית החדשות</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap">
+<style>
+/* Tokens from the Tamzit design system (design-system/tokens.json): the dashboard looks like the app it measures. */
+:root {
+  --surface: #F2FAFD; --raised: #FFFFFF; --tint: #C5E9F5; --hero: #182551;
+  --line: #D2D9E4; --line-strong: #7A8BAA;
+  --ink: #002653; --ink-muted: #4A5D7E;
+  --brand: #1C3F79; --on-brand: #FFFFFF; --sky: #00ACEC; --link: #0A6CC4;
+  --critical: #F65943; --critical-ink: #A24559; --critical-soft: #F8C5C2;
+  --good: #0E9E7E; --good-soft: #C6E5E0;
+  --sun: #B8860B; --sun-soft: #FFE08C;
+  --bar: #1C3F79; --bar-soft: #C5E9F5; --grid: #D2D9E4;
+  --radius: 14px; --radius-sm: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #021330; --raised: #0B1E42; --tint: #1C3F79; --hero: #182551;
+    --line: #283666; --line-strong: #6F82AB;
+    --ink: #F2FAFD; --ink-muted: #A9B8D0;
+    --brand: #7CC6F2; --on-brand: #021330; --link: #7CC6F2;
+    --critical: #F65943; --critical-ink: #F8C5C2; --critical-soft: #3D1A26;
+    --good: #18CBA0; --good-soft: #0E2220;
+    --sun: #FDD344; --sun-soft: #3A2F0B;
+    --bar: #7CC6F2; --bar-soft: #1C3F79; --grid: #283666;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--surface); color: var(--ink);
+  font-family: Rubik, "Segoe UI", system-ui, -apple-system, sans-serif; font-size: 16px; line-height: 1.5;
+  padding: 0 16px 48px;
+}
+[hidden] { display: none !important; }   /* .card/.right set display, which would otherwise outrank the attribute */
+.wrap { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; padding-block: 24px; }
+h1 { font-size: 22px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 14px; font-weight: 600; margin: 0; color: var(--ink-muted); }
+p { margin: 0; }
+.muted { color: var(--ink-muted); font-size: 13px; }
+header.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mark { width: 36px; height: 36px; border-radius: 10px; background: var(--hero); color: #F2FAFD; display: grid; place-items: center; font-weight: 700; flex: none; }
+header.top .right { margin-inline-start: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.card { background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500; color: var(--ink-muted); }
+input, textarea, select { font: inherit; font-size: 16px; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 10px 12px; width: 100%; }
+textarea { min-height: 88px; resize: vertical; }
+input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
+button { font: inherit; font-weight: 600; border-radius: var(--radius-sm); border: 1px solid transparent; padding: 10px 16px; cursor: pointer; background: var(--brand); color: var(--on-brand); }
+button:disabled { opacity: .5; cursor: default; }
+button.ghost { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+button.small { padding: 7px 12px; font-size: 14px; }
+button.danger { background: var(--critical); color: #fff; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; }
+.seg button { background: none; color: var(--ink-muted); border-radius: 999px; padding: 6px 14px; font-size: 14px; }
+.seg button[aria-pressed="true"] { background: var(--brand); color: var(--on-brand); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 10px; }
+.tile { background: var(--raised); border: 1px solid var(--line); border-inline-start: 3px solid var(--line-strong); border-radius: var(--radius-sm); padding: 12px 14px; }
+.tile.good { border-inline-start-color: var(--good); }
+.tile.warn { border-inline-start-color: var(--sun); }
+.tile.bad { border-inline-start-color: var(--critical); }
+.tile b { display: block; font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.tile span { font-size: 12px; color: var(--ink-muted); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: start; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; font-weight: 600; color: var(--ink-muted); text-transform: none; letter-spacing: .02em; }
+td.num, th.num { text-align: end; font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: none; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-inline-end: 7px; vertical-align: middle; }
+.note { border-radius: var(--radius-sm); padding: 10px 12px; font-size: 14px; border: 1px solid; }
+.note.ok { background: var(--good-soft); border-color: var(--good); color: var(--ink); }
+.note.bad { background: var(--critical-soft); border-color: var(--critical); color: var(--critical-ink); }
+.note.warn { background: var(--sun-soft); border-color: var(--sun); color: var(--ink); }
+.chart { position: relative; }
+.chart svg { width: 100%; height: 170px; display: block; overflow: visible; }
+.tip { position: absolute; pointer-events: none; background: var(--hero); color: #F2FAFD; font-size: 12px; padding: 6px 9px; border-radius: 8px; white-space: nowrap; transform: translate(-50%, -100%); opacity: 0; transition: opacity .12s; }
+.tip[data-show="1"] { opacity: 1; }
+.sender { display: none; }
+.sender[data-open="1"] { display: flex; }
+.tableWrap { overflow-x: auto; }
+@media (max-width: 560px) { .wrap { padding-block: 16px; gap: 16px; } .card { padding: 14px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="mark">ת</div>
+    <div>
+      <h1>נתוני שימוש</h1>
+      <p class="muted">תמצית החדשות · האפליקציה</p>
+    </div>
+    <div class="right" id="toolbar" hidden>
+      <div class="seg" role="group" aria-label="טווח">
+        <button data-days="7" aria-pressed="false">7 ימים</button>
+        <button data-days="30" aria-pressed="true">30 יום</button>
+        <button data-days="90" aria-pressed="false">90 יום</button>
+      </div>
+      <button class="ghost small" id="refresh">רענון</button>
+      <button class="ghost small" id="toggleSender">שליחת הודעה</button>
+      <button class="ghost small" id="signout">יציאה</button>
+    </div>
+  </header>
+
+  <!-- כניסה -->
+  <section class="card" id="login">
+    <h2>כניסה</h2>
+    <p class="muted">אותה כניסה כמו באפליקציה: מספר טלפון, וקוד שמגיע לדוא״ל של החשבון. רק מי שמורשה רואה את הנתונים.</p>
+    <div id="stepPhone">
+      <label for="phone">מספר טלפון
+        <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="050-0000000">
+      </label>
+      <div class="row" style="margin-top:12px"><button id="sendCode">שליחת קוד</button></div>
+    </div>
+    <div id="stepCode" hidden>
+      <label for="code">הקוד שקיבלת
+        <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="------">
+      </label>
+      <div class="row" style="margin-top:12px">
+        <button id="verify">כניסה</button>
+        <button class="ghost" id="back">מספר אחר</button>
+      </div>
+    </div>
+    <div id="loginNote"></div>
+  </section>
+
+  <!-- שליחת הודעה -->
+  <section class="card sender" id="sender">
+    <h2>שליחת הודעה לקוראים</h2>
+    <label for="mTitle">כותרת <input id="mTitle" maxlength="100" placeholder="תמצית החדשות"></label>
+    <label for="mBody">תוכן <textarea id="mBody" maxlength="500" placeholder="מה חשוב שהקוראים ידעו"></textarea></label>
+    <label for="mUrl">קישור (לא חובה) <input id="mUrl" dir="ltr" placeholder="https://"></label>
+    <div class="row">
+      <label style="max-width:220px">למי
+        <select id="mLang">
+          <option value="">כל הקוראים</option>
+          <option value="he">עברית</option>
+          <option value="en">אנגלית</option>
+          <option value="fr">צרפתית</option>
+        </select>
+      </label>
+      <label class="row" style="flex-direction:row;align-items:center;gap:8px;margin-top:18px">
+        <input type="checkbox" id="mShabbat" checked style="width:18px;height:18px"> לדלג על מי שבשבת או בחג
+      </label>
+    </div>
+    <div class="row"><button id="mSend">שליחה</button></div>
+    <div id="mNote"></div>
+  </section>
+
+  <!-- הנתונים -->
+  <main id="data" hidden style="display:flex;flex-direction:column;gap:20px">
+    <section class="card">
+      <h2>אנשים</h2>
+      <div class="tiles" id="people"></div>
+      <p class="muted" id="peopleNote"></p>
+    </section>
+
+    <section class="card">
+      <h2 id="chartTitle">קוראים פעילים ביום · 14 הימים האחרונים</h2>
+      <div class="chart"><svg id="chart" role="img" aria-labelledby="chartTitle"></svg><div class="tip" id="tip"></div></div>
+      <p class="muted" id="chartNote"></p>
+    </section>
+
+    <section class="card">
+      <h2>שימוש בטווח שנבחר</h2>
+      <div class="tiles" id="use"></div>
+      <p class="muted" id="useNote"></p>
+    </section>
+
+    <section class="card">
+      <h2>גרסאות מותקנות</h2>
+      <div class="tableWrap"><table id="versions"><thead><tr><th>גרסה</th><th class="num">מכשירים</th></tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <section class="card">
+      <h2>קוראים</h2>
+      <div class="tableWrap">
+        <table id="readers">
+          <thead><tr>
+            <th>שם</th><th>נראה לאחרונה</th><th class="num">מהדורות</th><th class="num">דקות</th>
+            <th class="num">האזנות</th><th class="num">פרסומות</th><th>גרסה</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="muted">צבע לפי מתי נכנס: היום, השבוע, מתרחק, נטש.</p>
+    </section>
+    <p class="muted" id="stamp"></p>
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var SUPABASE = '__SUPABASE_URL__';
+  var ANON = '__ANON_KEY__';
+  var KEY = 'tamzit-dash';
+  var el = function (id) { return document.getElementById(id); };
+  var state = { token: '', phone: '', days: 30, data: null };
+
+  function store(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) {} }
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function note(id, kind, text) {
+    var b = el(id); b.innerHTML = '';
+    if (!text) return;
+    var d = document.createElement('div'); d.className = 'note ' + kind; d.textContent = text; b.appendChild(d);
+  }
+  function post(path, body, token) {
+    return fetch(SUPABASE + path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', apikey: ANON, Authorization: 'Bearer ' + (token || ANON) },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok || j.error || j.code === 'P0001') {
+          throw Object.assign(new Error(j.message || j.error || ('שגיאה ' + r.status)), { code: j.error || j.message, status: r.status });
+        }
+        return j;
+      });
+    });
+  }
+  var MSG = {
+    not_an_operator: 'החשבון הזה לא מורשה לראות את הנתונים.',
+    invalid_code: 'הקוד לא נכון.', bad_code: 'הקוד לא נכון.',
+    expired: 'הקוד פג. אפשר לבקש קוד חדש.', too_many: 'יותר מדי נסיונות. כדאי לנסות שוב בעוד כמה דקות.',
+    not_found: 'אין חשבון עם המספר הזה.', missing_body: 'צריך לכתוב תוכן להודעה.',
+    bad_url: 'הקישור צריך להתחיל ב־https://'
+  };
+  var say = function (e) { return MSG[e.code] || e.message || 'משהו השתבש.'; };
+
+  // --- כניסה ---------------------------------------------------------------
+  el('sendCode').onclick = function () {
+    var phone = el('phone').value.trim();
+    if (!phone) { note('loginNote', 'bad', 'צריך מספר טלפון.'); return; }
+    this.disabled = true;
+    note('loginNote', 'ok', 'שולחים קוד…');
+    post('/functions/v1/app-auth-start', { mode: 'login', phone: phone })
+      .then(function (r) {
+        state.phone = phone;
+        el('stepPhone').hidden = true; el('stepCode').hidden = false; el('code').focus();
+        note('loginNote', 'ok', 'הקוד נשלח לכתובת ' + (r.masked_email || 'של החשבון') + '.');
+      })
+      .catch(function (e) { note('loginNote', 'bad', say(e)); })
+      .then(function () { el('sendCode').disabled = false; });
+  };
+  el('back').onclick = function () { el('stepCode').hidden = true; el('stepPhone').hidden = false; note('loginNote', '', ''); };
+  el('verify').onclick = function () {
+    var code = el('code').value.replace(/\D/g, '');
+    if (code.length !== 6) { note('loginNote', 'bad', 'הקוד הוא שש ספרות.'); return; }
+    this.disabled = true;
+    post('/functions/v1/app-auth-verify', { phone: state.phone, code: code })
+      .then(function (r) {
+        state.token = r.access_token;
+        store({ token: r.access_token, phone: state.phone, until: Date.now() + (r.expires_in || 3600) * 1000 });
+        note('loginNote', '', ''); enter();
+      })
+      .catch(function (e) { note('loginNote', 'bad', say(e)); })
+      .then(function () { el('verify').disabled = false; });
+  };
+  function enter() { el('login').hidden = true; el('toolbar').hidden = false; el('data').hidden = false; refresh(); }
+  function out(msg) {
+    store({}); state.token = '';
+    el('login').hidden = false; el('toolbar').hidden = true; el('data').hidden = true;
+    el('sender').dataset.open = '0'; el('stepCode').hidden = true; el('stepPhone').hidden = false;
+    if (msg) note('loginNote', 'warn', msg);
+  }
+  el('signout').onclick = function () { out(''); };
+  el('toggleSender').onclick = function () {
+    var s = el('sender'); s.dataset.open = s.dataset.open === '1' ? '0' : '1';
+    if (s.dataset.open === '1') el('mBody').focus();
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('.seg button'), function (b) {
+    b.onclick = function () {
+      Array.prototype.forEach.call(document.querySelectorAll('.seg button'), function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+      state.days = Number(b.dataset.days); refresh();
+    };
+  });
+  el('refresh').onclick = function () { refresh(); };
+
+  // --- הנתונים --------------------------------------------------------------
+  function refresh() {
+    post('/rest/v1/rpc/app_analytics', { p_days: state.days }, state.token)
+      .then(function (a) { state.data = a; render(a); })
+      .catch(function (e) {
+        if (e.status === 401 || e.code === 'not_an_operator') { out(say(e)); return; }
+        note('peopleNote', 'bad', say(e));
+      });
+  }
+  function tile(parent, value, label, tone) {
+    var d = document.createElement('div');
+    d.className = 'tile' + (tone ? ' ' + tone : '');
+    d.innerHTML = '<b></b><span></span>';
+    d.querySelector('b').textContent = value;
+    d.querySelector('span').textContent = label;
+    parent.appendChild(d);
+  }
+  var LANGS = { he: 'עברית', en: 'אנגלית', fr: 'צרפתית', unknown: 'לא ידוע' };
+  function daysSince(iso) { return iso ? Math.floor((Date.now() - Date.parse(iso)) / 86400000) : null; }
+  function seenText(d) { return d === null ? 'לא נכנס' : d === 0 ? 'היום' : d === 1 ? 'אתמול' : 'לפני ' + d + ' ימים'; }
+  function seenColor(d) {
+    return d === null ? 'var(--line-strong)' : d <= 1 ? 'var(--good)' : d <= 7 ? 'var(--sky)' : d <= 14 ? 'var(--sun)' : 'var(--critical)';
+  }
+
+  function render(a) {
+    var p = a.people, e = a.engagement;
+    var people = el('people'); people.innerHTML = '';
+    tile(people, p.registered, 'נרשמו');
+    tile(people, p.with_device, 'התקינו');
+    tile(people, p.active_today, 'פעילים היום', 'good');
+    tile(people, p.active_7d, 'פעילים ב-7 ימים', 'good');
+    tile(people, p.new_7d, 'חדשים השבוע');
+    tile(people, p.at_risk, 'מתרחקים', p.at_risk ? 'warn' : '');
+    tile(people, p.churned, 'נטשו', p.churned ? 'bad' : '');
+    tile(people, p.never_opened, 'לא פתחו אף פעם', p.never_opened ? 'warn' : '');
+    el('peopleNote').textContent = 'מתרחק: לא נכנס בין 7 ל-14 יום. נטש: לא נכנס מעל 14 יום.'
+      + (p.legacy_profiles ? ' ' + p.legacy_profiles + ' פרופילים ישנים מהשירות בוואטסאפ לא נספרים כאן.' : '');
+
+    var use = el('use'); use.innerHTML = '';
+    tile(use, e.editions_read, 'מהדורות שנקראו');
+    tile(use, e.minutes, 'דקות באפליקציה');
+    tile(use, e.audio_plays, 'האזנות למבזק');
+    tile(use, e.ad_clicks, 'לחיצות על פרסומת');
+    tile(use, e.saves, 'שמירות');
+    tile(use, e.shares, 'שיתופים');
+    tile(use, e.searches, 'חיפושים');
+    el('useNote').textContent = e.audio_listeners + ' קוראים האזינו · ' + e.ad_clickers + ' קוראים לחצו על פרסומת · '
+      + e.tour_done + ' סיימו את ההדרכה, ' + e.tour_skip + ' דילגו';
+
+    drawChart(a.daily);
+
+    var vb = el('versions').querySelector('tbody'); vb.innerHTML = '';
+    a.versions.forEach(function (v) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td></td><td class="num"></td>';
+      tr.children[0].textContent = v.version + (v.build ? ' · build ' + v.build : '');
+      tr.children[1].textContent = v.devices;
+      vb.appendChild(tr);
+    });
+
+    var rb = el('readers').querySelector('tbody'); rb.innerHTML = '';
+    a.readers.forEach(function (r) {
+      var d = daysSince(r.seen);
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td></td><td></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td>';
+      var dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = seenColor(d);
+      tr.children[0].appendChild(dot);
+      tr.children[0].appendChild(document.createTextNode(r.name + (r.lang && r.lang !== 'he' ? ' · ' + (LANGS[r.lang] || r.lang) : '')));
+      tr.children[1].textContent = seenText(d);
+      tr.children[2].textContent = r.editions;
+      tr.children[3].textContent = r.minutes;
+      tr.children[4].textContent = r.audio;
+      tr.children[5].textContent = r.ads;
+      tr.children[6].textContent = r.version || (r.push ? '—' : 'בלי התראות');
+      rb.appendChild(tr);
+    });
+
+    el('stamp').textContent = 'עודכן ' + new Date(a.generated_at).toLocaleString('he-IL');
+  }
+
+  // One series over time: bars, a recessive baseline, the largest day and the last day labelled, hover on each bar.
+  function drawChart(daily) {
+    var svg = el('chart'), tip = el('tip');
+    var W = svg.clientWidth || 900, H = 170, padB = 26, padT = 18;
+    var max = Math.max(1, ...daily.map(function (d) { return d.people; }));
+    var n = daily.length, gap = 6, bw = Math.max(6, (W - gap * (n - 1)) / n);
+    var scale = function (v) { return (H - padB - padT) * (v / max); };
+    var parts = ['<line x1="0" y1="' + (H - padB) + '" x2="' + W + '" y2="' + (H - padB) + '" stroke="var(--grid)" stroke-width="1"/>'];
+    daily.forEach(function (d, i) {
+      var x = i * (bw + gap), h = Math.max(d.people ? 3 : 1, scale(d.people)), y = H - padB - h;
+      parts.push('<rect class="bar" data-i="' + i + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1)
+        + '" height="' + h.toFixed(1) + '" rx="4" fill="' + (d.people ? 'var(--bar)' : 'var(--bar-soft)') + '"/>');
+      if (i % 2 === 0 || i === n - 1) {
+        parts.push('<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="10" fill="var(--ink-muted)">'
+          + new Date(d.day).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' }) + '</text>');
+      }
+      if (d.people === max || i === n - 1) {
+        if (d.people) parts.push('<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (y - 5).toFixed(1)
+          + '" text-anchor="middle" font-size="11" font-weight="600" fill="var(--ink)">' + d.people + '</text>');
+      }
+    });
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.innerHTML = parts.join('');
+    el('chartNote').textContent = 'כמה קוראים שונים פתחו את האפליקציה בכל יום. השיא בטווח: ' + max + '.';
+    svg.onmousemove = function (ev) {
+      var t = ev.target;
+      if (!t.classList || !t.classList.contains('bar')) { tip.dataset.show = '0'; return; }
+      var d = daily[Number(t.dataset.i)];
+      tip.textContent = new Date(d.day).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' })
+        + ' · ' + d.people + ' קוראים · ' + d.opens + ' פתיחות';
+      var r = svg.getBoundingClientRect(), br = t.getBoundingClientRect();
+      tip.style.left = (br.left - r.left + br.width / 2) + 'px';
+      tip.style.top = (br.top - r.top - 6) + 'px';
+      tip.dataset.show = '1';
+    };
+    svg.onmouseleave = function () { tip.dataset.show = '0'; };
+  }
+  window.addEventListener('resize', function () { if (state.data) drawChart(state.data.daily); });
+
+  // --- שליחת הודעה ----------------------------------------------------------
+  el('mSend').onclick = function () {
+    var body = {
+      action: 'broadcast', title: el('mTitle').value.trim(), body: el('mBody').value.trim(),
+      url: el('mUrl').value.trim(), language: el('mLang').value, skip_shabbat: el('mShabbat').checked
+    };
+    if (!body.body) { note('mNote', 'bad', 'צריך לכתוב תוכן להודעה.'); return; }
+    var btn = this;
+    btn.disabled = true;
+    note('mNote', 'ok', 'בודקים כמה מכשירים יקבלו…');
+    post('/functions/v1/app-push', Object.assign({ dry_run: true }, body), state.token)
+      .then(function (r) {
+        var ok = window.confirm('לשלוח ל־' + r.awake + ' מכשירים?' + (r.skipped_shabbat ? ' (' + r.skipped_shabbat + ' מדלגים בגלל שבת או חג)' : ''));
+        if (!ok) { note('mNote', '', ''); return null; }
+        return post('/functions/v1/app-push', body, state.token);
+      })
+      .then(function (r) {
+        if (!r) return;
+        note('mNote', 'ok', 'נשלח ל־' + r.sent + ' מתוך ' + r.devices + ' מכשירים.');
+        el('mBody').value = ''; el('mUrl').value = '';
+      })
+      .catch(function (e) { note('mNote', 'bad', say(e)); })
+      .then(function () { btn.disabled = false; });
+  };
+
+  // --- התחלה ----------------------------------------------------------------
+  var saved = load();
+  if (saved.phone) el('phone').value = saved.phone;
+  if (saved.token && saved.until && saved.until > Date.now() + 60000) { state.token = saved.token; state.phone = saved.phone || ''; enter(); }
+})();
+</script>
+</body>
+</html>
