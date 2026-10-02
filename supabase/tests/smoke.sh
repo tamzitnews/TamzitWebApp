@@ -218,6 +218,42 @@ from latest l;
 SQLEND
   check "every language/type parses into items, good news where the edition has it, and no promo" "len(d[0]['r'])>=6 and all(e['junk']==0 and (e['n']>=1 if e['type']=='special_update' else (e['n']>=3 and e['title'] and (e['good']==1 if e['has_good'] else e['good']==0))) for e in d[0]['r'])" "$TMP/out" 200
 
+  echo "== the edition's byline (כתיבה: … / Author: … / Rédaction: … + Traduction: …)"
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+with latest as (
+  select distinct on (language, edition_type) id, language, edition_type, main_text
+  from public.tamzit_editions order by language, edition_type, created_at desc
+)
+select json_build_object(
+  'editions', (select json_agg(json_build_object(
+     'lang', l.language, 'type', l.edition_type, 'credit', public.app_edition_credit(l.main_text),
+     'credit_in_items', (select count(*) from public.app_parse_edition(l.main_text, l.edition_type) p
+                         where p.headline || ' ' || p.body ~* '(כתיבה:|Author:|Rédaction:|Traduction:)'))
+     order by l.language, l.edition_type) from latest l),
+  'markup', public.app_edition_credit(E'*כתיבה: אלעד ינאי.*'),
+  'two_names', public.app_edition_credit(E'כותרת\n\nכתיבה: הדר לבני ויגאל פסו.') ->> 'writer',
+  'french', public.app_edition_credit(E'Rédaction: Elad Yanai\nTraduction: Anaelle Korchia'),
+  'mid_sentence', public.app_edition_credit(E'הכתבה עוסקת בכתיבה: משהו באמצע משפט'),
+  'nothing', public.app_edition_credit(null)) as r;
+SQLEND
+  check "every edition carries its byline, French also the translator, and no credit line leaks into an item" "len(d[0]['r']['editions'])>=6 and all((e['credit'] is None if e['type']=='special_update' else (e['credit']['writer'] and (e['credit']['translator'] if e['lang']=='french' else True))) and e['credit_in_items']==0 for e in d[0]['r']['editions']) and d[0]['r']['markup']=={'writer':'אלעד ינאי','translator':None} and d[0]['r']['two_names']=='הדר לבני ויגאל פסו' and d[0]['r']['french']=={'writer':'Elad Yanai','translator':'Anaelle Korchia'} and d[0]['r']['mid_sentence'] is None and d[0]['r']['nothing'] is None" "$TMP/out" 200
+  "$SQL" - > "$TMP/out" <<SQLEND
+begin;
+select set_config('request.jwt.claims', '{"sub":"$FREE_ID","role":"authenticated"}', true);
+set local role authenticated;
+create temp table f as select public.app_personal_edition() as j;
+create temp table v as select public.app_edition_view(((select j from f) ->> 'edition_id')::bigint) as j;
+reset role;
+select json_build_object(
+  'feed_has_credit', (select j ? 'credit' from f),
+  'view_has_credit', (select j ? 'credit' from v),
+  'same_as_the_edition', (select (f.j -> 'credit') is not distinct from public.app_edition_credit(e.main_text)
+                          from f join public.tamzit_editions e on e.id = ((select j from f) ->> 'edition_id')::bigint),
+  'writer', (select f.j #>> '{credit,writer}' from f)) as r;
+rollback;
+SQLEND
+  check "the reader's edition and a single edition from the archive both carry the byline" "d[0]['r']['feed_has_credit'] is True and d[0]['r']['view_has_credit'] is True and d[0]['r']['same_as_the_edition'] is True and d[0]['r']['writer']" "$TMP/out" 200
+
   echo "== the engine's duplicates (it writes every edition a few times, a row per WhatsApp group)"
   "$SQL" - > "$TMP/out" <<'SQLEND'
 with langs as (select unnest(array['he', 'en', 'fr']) as c),

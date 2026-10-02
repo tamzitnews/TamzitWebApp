@@ -17,13 +17,14 @@ export const EDITION_ICONS: Record<EditionType, LucideIcon> = {
   special: Megaphone,
 };
 
-/** Design-system EditionHeader: day and date, edition name, count and reading time, "listen". */
+/** Design-system EditionHeader: day and date, edition name, byline, count and reading time, "listen". */
 export const EditionHeader = memo(function EditionHeader({
   type,
   name,
   date,
   count,
   minutes,
+  credit,
   onListen,
 }: {
   type: EditionType;
@@ -31,9 +32,14 @@ export const EditionHeader = memo(function EditionHeader({
   date: string;
   count: number;
   minutes: number;
+  credit?: { writer: string | null; translator: string | null } | null;
   onListen?: () => void;
 }) {
   const s = useStrings(S);
+  // The byline, as a news site puts it under the headline: who wrote the edition, and in French who translated it.
+  const byline = [credit?.writer ? s.writtenBy(credit.writer) : null, credit?.translator ? s.translatedBy(credit.translator) : null]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <View style={{ gap: space[2], paddingTop: space[3], paddingBottom: space[1] }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
@@ -45,6 +51,11 @@ export const EditionHeader = memo(function EditionHeader({
       <T variant="display" accessibilityRole="header">
         {name}
       </T>
+      {byline ? (
+        <T variant="caption" color="inkMuted" weight={500}>
+          {byline}
+        </T>
+      ) : null}
       {count > 0 || onListen ? (
         <View
           style={{

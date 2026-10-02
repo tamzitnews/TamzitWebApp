@@ -229,7 +229,17 @@ export function EditionFeed({
     ({ item: row }) => {
       switch (row.type) {
         case 'header':
-          return <EditionHeader type={type} name={name} date={date} count={count} minutes={feed.minutes} onListen={onListen} />;
+          return (
+            <EditionHeader
+              type={type}
+              name={name}
+              date={date}
+              count={count}
+              minutes={feed.minutes}
+              credit={feed.credit}
+              onListen={onListen}
+            />
+          );
         case 'notices':
           return <NoticeStrip notices={row.notices} />;
         case 'special':

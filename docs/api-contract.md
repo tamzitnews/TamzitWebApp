@@ -212,6 +212,7 @@ type Feed = {
   is_premium: boolean;
   notices: string[];                                // the edition's notices to readers ("קוראים יקרים, …"), 0–2
   edition_id: string | null;                        // newest regular edition in the feed
+  credit: { writer: string | null; translator: string | null } | null;  // byline of that edition; null for a special update
   next_edition?: { type: 'morning'|'noon'|'evening'|'motzash'; at: string } | null;  // personal edition only
 };
 ```
@@ -220,6 +221,9 @@ type Feed = {
   with "קוראים יקרים" / "Dear readers" / "Chers lecteurs" / "מערכת תמצית החדשות" to the end of the block, or a block
   about the next edition ("המהדורה הבאה", "next update", "prochaine édition") with no news in it; markup removed. The
   app shows them small, under the header.
+- `credit` (`app_edition_credit`): the edition's byline, read from its credit line ("כתיבה: הדר לבני.",
+  "Author: Hadar Livny", "Rédaction: … / Traduction: …"). The parser keeps that line out of the items; the app shows
+  it under the edition name, as a news site shows the reporter's. Special updates carry none.
 - `next_edition` (`app_next_edition`): the next edition the reader gets and roughly when, from
   `app_settings.edition_schedule` (times per slot and language, editions per kind of day), `app_calendar_days`
   (chol hamoed: morning and evening only) and the reader's rest periods (no edition from `erev_lead_min` before

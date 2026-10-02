@@ -82,6 +82,8 @@ export type Feed = {
   notices?: string[];
   /** The newest regular (engine) edition in the feed, or null when it has none. */
   edition_id?: string | null;
+  /** Byline of that edition: who wrote it, and in French who translated it. Special updates carry none. */
+  credit?: { writer: string | null; translator: string | null } | null;
   /** Personal edition only: the reader's next edition, or null when unknown. */
   next_edition?: NextEdition | null;
 };
