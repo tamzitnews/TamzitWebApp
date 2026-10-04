@@ -358,6 +358,10 @@ SQLEND
   s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-whapi" -H 'Content-Type: application/json' -H 'x-whapi-secret: wrong' -d '{"messages":[]}')
   check "whapi webhook rejects a wrong secret" "s==403" "$TMP/out" "$s"
   s=$(call POST "$FN/app-whapi" "$ANON" '{"action":"status"}'); check "whapi operations need the app secret" "s==403" "$TMP/out" "$s"
+  s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-whapi" -H "Authorization: Bearer $ANON" -H 'Content-Type: application/json' -H "x-app-secret: $SECRET" -d '{"action":"status"}')
+  check "Whapi still calls us: our webhook is registered on every number" "s==200 and d.get('ok') is True and len(d.get('numbers', []))>=1 and all(n.get('connected') is True for n in d['numbers'])" "$TMP/out" "$s"
+  echo "select json_build_object('watchdog', (select count(*) from pg_proc where proname = 'app_whapi_watchdog'), 'hourly', (select prosrc like '%app_whapi_watchdog%' from pg_proc where proname = 'app_housekeeping')) as r" | "$SQL" - > "$TMP/out"
+  check "the hourly check puts our webhook back when something removes it" "d[0]['r']['watchdog']==1 and d[0]['r']['hourly'] is True" "$TMP/out" 200
   "$SQL" - > "$TMP/out" <<'SQLEND'
 begin;
 create temp table r as select

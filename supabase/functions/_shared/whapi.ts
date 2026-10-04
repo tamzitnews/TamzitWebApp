@@ -90,7 +90,7 @@ async function downloadImage(tokens: string[], img: WhapiMedia): Promise<{ bytes
 export type Outcome =
   | 'special_saved'
   | 'special_known'
-  | 'edition_saved'
+  | 'edition_parked'
   | 'edition_known'
   | 'ad_saved'
   | 'ad_image_saved'
@@ -137,7 +137,8 @@ export async function handleSent(db: SupabaseClient, m: WhapiMessage, supabaseUr
       const { data: r, error } = await db.rpc('app_ingest_sent', { p_text: text, p_at: whenOf(m), p_message_id: m.id ?? null });
       if (error) throw error;
       if (r?.kind === 'special') return r.id ? 'special_saved' : 'special_known';
-      if (r?.kind === 'edition') return r.id ? 'edition_saved' : 'edition_known';
+      // since 0031 an edition is never written on arrival: it waits for the engine (app_whapi_pending)
+      if (r?.kind === 'edition') return r.parked ? 'edition_parked' : 'edition_known';
       adSaved = r?.kind === 'ad' && !!r.id; // an image with it is the ad's image (below)
     }
     if (m.type !== 'image' || !m.image) return adSaved ? 'ad_saved' : 'other';
