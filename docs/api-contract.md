@@ -63,7 +63,7 @@ edition_type 'classic'|'daily'|'special_update'|'teens', time_slot 'בוקר'|'�
 
 | app | from |
 | --- | --- |
-| edition id | `id` (as a string); the engine inserts every edition several times (one row per WhatsApp group): identical texts of the same slot and day collapse to the first row, and when a slot was re-sent with a different text the newest text wins (special updates keep each distinct text). An edition the engine sent on WhatsApp without logging it is written once from the sent text (`app_ingest_edition`, migration 0024; listed in `app_whapi_editions`) |
+| edition id | `id` (as a string); the engine inserts every edition several times (one row per WhatsApp group): identical texts of the same slot and day collapse to the first row, and when a slot was re-sent with a different text the newest text wins (special updates keep each distinct text; a Motzei Shabbat edition and the evening edition of the same night are two slots, migration 0035). An edition the engine sent on WhatsApp without logging it is written once from the sent text (`app_ingest_edition`, migration 0024; listed in `app_whapi_editions`) |
 | published_at | `created_at` of that first row |
 | language | `hebrew`/`english`/`french` → `he`/`en`/`fr` |
 | audience | `edition_type = 'teens'` → `youth`, else `general` |
@@ -317,8 +317,10 @@ type Feed = {
   shown by the app in a small line under the item (`NewsItem` → `JevLine`). Both are on in the pilot since 2026-09-30.
 - `POST /functions/v1/app-push` — called by the trigger `app_tamzit_editions_push` (pg_net, AFTER INSERT on
   `tamzit_editions`) once per published edition: one per distinct special update (`special:<language>:<md5(text)>`) and
-  one per regular edition (`edition:<language>:<track>:<slot>:<edition_date>`), claimed in `app_push_log` so the engine's
-  duplicate rows push once; checks the `x-app-secret` header; ignores editions older than `push_max_age_minutes` (120).
+  one per regular edition (`edition:<language>:<track>:<slot>:<edition_date>`; a Motzei Shabbat edition counts as slot
+  `motzash`, `app_edition_slot_key` in migration 0035, so on a winter Saturday night it and the evening edition push
+  once each), claimed in `app_push_log` so the engine's duplicate rows push once; checks the `x-app-secret` header;
+  ignores editions older than `push_max_age_minutes` (120).
   Texts from `app_settings` (`push_special_title_<lang>`, `push_special_body_<lang>`, `push_edition_body_<lang>`).
   - Special update: devices whose profile has `special_push = true` and the edition's language; title "עדכון מיוחד";
     Android channel `special`; data `{ type: 'special', edition_id: '<id>', url: 'tamzit://edition/<id>' }`.
