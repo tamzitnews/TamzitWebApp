@@ -470,6 +470,38 @@ rollback;
 SQLEND
   check "an edition seen on WhatsApp waits for the engine, is written once the wait is over with the sponsor ad that waited with it, and is never taken at an impossible hour" "d[0]['r']['night_refused'] is True and d[0]['r']['hour_window']==[True,False,True] and d[0]['r']['parked'] is True and d[0]['r']['ad_parked'] is True and d[0]['r']['nothing_before_the_wait']==0 and d[0]['r']['written_when_due']==1 and d[0]['r']['edition_has_its_ad']==1 and d[0]['r']['second_not_written']==0 and d[0]['r']['outcomes']==['written','engine_wrote_it']" "$TMP/out" 200
 
+  # 0035: on a winter Saturday night both Hebrew evening editions (Motzei Shabbat, then the regular one) reach the reader
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+begin;
+update public.app_settings set value = 'true'::jsonb where key = 'whatsapp_editions_fallback';
+update public.app_settings set value = '20'::jsonb where key = 'whatsapp_edition_delay_minutes';
+update public.app_settings set value = '{"morning": [0, 24], "noon": [0, 24], "evening": [0, 24], "daily": [0, 24]}'::jsonb
+ where key = 'edition_slot_hours';
+-- a winter Saturday night (the teens header, so no real edition of today is in the way): Motzei Shabbat, then evening
+create temp table items as select
+     E'📌 *_ביטחון:_*\n• ידיעה ראשונה של בדיקת העשן, שנכתבה כדי שהמהדורה תהיה ארוכה מספיק ותתפרק לשתי ידיעות לפחות, בדיוק כמו מהדורה אמיתית.\n\n'
+  || E'• ידיעה שנייה של אותה בדיקה, גם היא באורך סביר לגמרי, כדי שהבדיקה תהיה נאמנה למה שקורה במציאות ולא תיפול על אורך הטקסט.\n' as t;
+create temp table m as select public.app_ingest_sent(E'📻 *תמצית החדשות לנוער*\n*מהדורת מוצאי שבת*\nבדיקת עשן\n\n' || (select t from items),
+                                                      now() - interval '50 minutes', 'smoke-motzash') as j;
+create temp table e as select public.app_ingest_sent(E'📻 *תמצית החדשות לנוער*\n*מהדורת ערב, מוצאי שבת*\nבדיקת עשן\n\n' || (select t from items),
+                                                      now() - interval '25 minutes', 'smoke-evening') as j;
+create temp table e2 as select public.app_ingest_sent(E'📻 *תמצית החדשות לנוער*\n*מהדורת ערב, מוצאי שבת*\nבדיקת עשן\n\n' || (select t from items),
+                                                      now() - interval '24 minutes', 'smoke-evening-2') as j;
+create temp table due as select public.app_ingest_due_editions() as n;
+create temp table w as select p.outcome, p.edition_id from public.app_whapi_pending p
+  where p.message_id in ('smoke-motzash', 'smoke-evening', 'smoke-evening-2') order by p.sent_at;
+select json_build_object(
+  'outcomes', (select json_agg(outcome) from w),
+  'pushes', (select json_agg(regexp_replace(l.key, ':[0-9-]+$', '') order by l.key) from public.app_push_log l
+             where l.edition_id in (select edition_id from w)),
+  'groups', (select json_agg(cardinality(public.app_edition_group(edition_id))) from w),
+  'in_feed', (select count(*) from public.app_editions_window('he', now() - interval '2 hours', now()) x
+              where x.id in (select edition_id from w)),
+  'second_copy_parked', ((select j from e2) ->> 'parked') is not null) as r;
+rollback;
+SQLEND
+  check "on a winter Saturday night the Motzei Shabbat and the evening edition are two editions: both written, each pushed once, both in the feed (rolled back)" "d[0]['r']['outcomes']==['written','written'] and d[0]['r']['pushes']==['edition:hebrew:teens:evening','edition:hebrew:teens:motzash'] and d[0]['r']['groups']==[1,1] and d[0]['r']['in_feed']==2 and d[0]['r']['second_copy_parked'] is False" "$TMP/out" 200
+
   echo "== usage events and the dashboard"
   "$SQL" - > "$TMP/out" <<'SQLEND'
 begin;
