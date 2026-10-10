@@ -404,8 +404,29 @@ rollback;
 SQLEND
   check "edition headers are read as the engine names them (Friday notice first, daily, English, French)" "d[0]['r']['k']['he_evening']=={'language':'hebrew','edition_type':'classic','time_slot':'ערב'} and d[0]['r']['k']['he_friday']=={'language':'hebrew','edition_type':'classic','time_slot':'צהריים'} and d[0]['r']['k']['he_daily']['edition_type']=='daily' and d[0]['r']['k']['en_morning']=={'language':'english','edition_type':'classic','time_slot':'בוקר'} and d[0]['r']['k']['fr_evening']['language']=='french' and d[0]['r']['k']['special_lang'] is None" "$TMP/out" 200
   check "an edition sent on WhatsApp is parked with its sponsor ad, neither of them twice, and nothing is written yet (rolled back)" "d[0]['r']['e1']['kind']=='edition' and d[0]['r']['e1']['id'] is None and d[0]['r']['e1']['parked'] and d[0]['r']['e2']['parked'] is None and d[0]['r']['a1']['kind']=='ad' and d[0]['r']['a1']['id'] is None and d[0]['r']['a1']['parked']==d[0]['r']['e1']['parked'] and d[0]['r']['a2']['parked'] is None and d[0]['r']['n1']=={} and d[0]['r']['pending']=={'lang':'hebrew','type':'classic','slot':'ערב','today':True,'ad':True,'waiting':True,'edition':None} and d[0]['r']['pushed']==0" "$TMP/out" 200
-  echo "select json_build_object('jobs', (select json_agg(jobname order by jobname) from cron.job where jobname like 'app-%')) as r" | "$SQL" - > "$TMP/out"
-  check "no polling: the only app cron job is the hourly housekeeping check" "d[0]['r']['jobs']==['app-housekeeping']" "$TMP/out" 200
+  echo "select json_build_object('jobs', (select json_agg(jobname order by jobname) from cron.job where jobname like 'app-%'), 'waiting', (select count(*) from public.app_whapi_pending where done_at is null)) as r" | "$SQL" - > "$TMP/out"
+  check "no polling: the hourly check, and app-due only while an edition is waiting" "d[0]['r']['jobs']==(['app-due','app-housekeeping'] if d[0]['r']['waiting'] else ['app-housekeeping'])" "$TMP/out" 200
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+begin;
+update public.app_settings set value = 'true'::jsonb where key = 'whatsapp_editions_fallback';
+update public.app_settings set value = '{"morning": [0, 24], "noon": [0, 24], "evening": [0, 24], "daily": [0, 24]}'::jsonb
+ where key = 'edition_slot_hours';
+create temp table body as select E'📻 *תמצית החדשות לנוער*\n*מהדורת ערב, בדיקת עשן*, 1 בינואר 1999\n\n'
+  || E'📌 *_ביטחון:_*\n• ידיעה ראשונה של בדיקת העשן, שנכתבה כדי שהמהדורה תהיה ארוכה מספיק ותתפרק לשתי ידיעות לפחות, כמו מהדורה אמיתית.\n\n'
+  || E'• ידיעה שנייה של אותה בדיקה, גם היא באורך סביר לגמרי, כדי שהבדיקה תהיה נאמנה למה שקורה במציאות ולא תיפול על אורך הטקסט.\n\n'
+  || E'📌 *_מהמתרחש בארץ:_*\n• ידיעה שלישית, שמוסיפה עוד פרק ועוד אורך, כדי שהמהדורה תיראה כמו מהדורה ולא כמו הודעה קצרה.\n' as t;
+create temp table p1 as select public.app_ingest_edition((select t from body), now() - interval '1 minute') as id;
+create temp table job as select schedule from cron.job where jobname = 'app-due';
+update public.app_whapi_pending set due_at = now() - interval '1 second' where id = (select id from p1);
+create temp table w1 as select public.app_ingest_due_editions() as n;
+select json_build_object(
+  'parked', (select id from p1) is not null,
+  'job_while_waiting', (select count(*) from job),
+  'written', (select n from w1),
+  'job_after', (select count(*) from cron.job where jobname = 'app-due')) as r;
+rollback;
+SQLEND
+  check "a parked edition sets the due job for its own minute, and the job is gone once it is written" "d[0]['r']['parked'] is True and d[0]['r']['job_while_waiting']==1 and d[0]['r']['written']==1 and d[0]['r']['job_after']==0" "$TMP/out" 200
 
   "$SQL" - > "$TMP/out" <<'SQLEND'
 begin;
