@@ -133,7 +133,7 @@ s=$(rpc "$FREE" app_me); check "app_me free" "s==200 and d['is_premium'] is Fals
 FROM48=$(date -u -d '-48 hours' +%FT%TZ)
 s=$(rpc "$FREE" app_personal_edition "{\"p_from\":\"$FROM48\"}")
 check "personal edition (last 48h): shape" "s==200 and set(d)>={'window','edition_types','title','items','special','community','good_news','ad','audio','minutes','is_premium'}" "$TMP/out" "$s"
-check "personal edition: items filtered + ordered + capped" "0<len(d['items'])<=10 and all(i['level']=='critical' or ((i['topic_id'] is None or any(t in ['security','economy','health','education','weather','transport','world'] for t in [i['topic_id']] + (i.get('topics') or []))) and i['level'] in ('critical','important')) for i in d['items']) and [ {'critical':3,'important':2,'general':1}[i['level']] for i in d['items'] ]==sorted([{'critical':3,'important':2,'general':1}[i['level']] for i in d['items']], reverse=True)" "$TMP/out" "$s"
+check "personal edition: items filtered, capped, and ordered by level inside each section" "0<len(d['items'])<=10 and all(i['level']=='critical' or ((i['topic_id'] is None or any(t in ['security','economy','health','education','weather','transport','world'] for t in [i['topic_id']] + (i.get('topics') or []))) and i['level'] in ('critical','important')) for i in d['items']) and all(g==sorted(g, reverse=True) for g in __import__('itertools').starmap(lambda k, it: [{'critical':3,'important':2,'general':1}[x['level']] for x in it], __import__('itertools').groupby(d['items'], key=lambda i: (i.get('section'), i.get('subsection')))))" "$TMP/out" "$s"
 check "personal edition: Hebrew items with string ids e<edition>-<n> / s<story>" "all(any('\u0590'<=ch<='\u05ff' for ch in i['body']) and isinstance(i['headline'], str) and (i['id'].startswith('e') or i['id'].startswith('s')) for i in d['items'])" "$TMP/out" "$s"
 check "personal edition: no promo / credits / links in items" "not any(x in (i['headline']+i['body']) for i in d['items'] for x in ('http', 'link.mmb', 'כתיבה:', 'לשיתוף עם חברים', '•', '*'))" "$TMP/out" "$s"
 check "personal edition: good_news, special, community, ad, audio shapes" "(d['good_news'] is None or d['good_news']['kind']=='good_news') and all(x['level']=='critical' for x in d['special']) and isinstance(d['community'], list) and (d['ad'] is None or (d['ad']['label'] and d['ad']['id'].startswith('ad') and 'image_url' in d['ad'])) and all('section' in x and 'subsection' in x for x in d['items']) and (d['audio'] is None or d['audio']['audio_url'].startswith('https://')) and d['minutes']>=1 and d['is_premium'] is False" "$TMP/out" "$s"
@@ -405,7 +405,61 @@ SQLEND
   check "edition headers are read as the engine names them (Friday notice first, daily, English, French)" "d[0]['r']['k']['he_evening']=={'language':'hebrew','edition_type':'classic','time_slot':'ערב'} and d[0]['r']['k']['he_friday']=={'language':'hebrew','edition_type':'classic','time_slot':'צהריים'} and d[0]['r']['k']['he_daily']['edition_type']=='daily' and d[0]['r']['k']['en_morning']=={'language':'english','edition_type':'classic','time_slot':'בוקר'} and d[0]['r']['k']['fr_evening']['language']=='french' and d[0]['r']['k']['special_lang'] is None" "$TMP/out" 200
   check "an edition sent on WhatsApp is parked with its sponsor ad, neither of them twice, and nothing is written yet (rolled back)" "d[0]['r']['e1']['kind']=='edition' and d[0]['r']['e1']['id'] is None and d[0]['r']['e1']['parked'] and d[0]['r']['e2']['parked'] is None and d[0]['r']['a1']['kind']=='ad' and d[0]['r']['a1']['id'] is None and d[0]['r']['a1']['parked']==d[0]['r']['e1']['parked'] and d[0]['r']['a2']['parked'] is None and d[0]['r']['n1']=={} and d[0]['r']['pending']=={'lang':'hebrew','type':'classic','slot':'ערב','today':True,'ad':True,'waiting':True,'edition':None} and d[0]['r']['pushed']==0" "$TMP/out" 200
   echo "select json_build_object('jobs', (select json_agg(jobname order by jobname) from cron.job where jobname like 'app-%'), 'waiting', (select count(*) from public.app_whapi_pending where done_at is null)) as r" | "$SQL" - > "$TMP/out"
-  check "no polling: the hourly check, and app-due only while an edition is waiting" "d[0]['r']['jobs']==(['app-due','app-housekeeping'] if d[0]['r']['waiting'] else ['app-housekeeping'])" "$TMP/out" 200
+  check "no polling: the hourly check, the watchdog's next check, and app-due only while an edition is waiting" "d[0]['r']['jobs']==sorted((['app-due'] if d[0]['r']['waiting'] else []) + ['app-housekeeping','app-watch'])" "$TMP/out" 200
+
+  echo "== the watchdog: an edition that did not arrive"
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+select json_build_object(
+  'weekday', (select json_agg(slot order by due_at) from public.app_expected_editions('2026-11-02')),
+  'friday',  (select json_agg(slot order by due_at) from public.app_expected_editions('2026-11-06')),
+  'saturday',(select json_agg(slot order by due_at) from public.app_expected_editions('2026-11-07')),
+  'grace', public.app_setting_int('edition_alert_grace_minutes', 30),
+  'enabled', public.app_setting_bool('edition_alerts_enabled', true),
+  'in_housekeeping', (select prosrc like '%app_edition_watchdog%' from pg_proc where proname = 'app_housekeeping'),
+  'missed_now', (select count(*) from public.app_missed_editions())) as r;
+SQLEND
+  check "the service's own schedule says what is owed: four on a weekday, no evening on Friday, Motzei Shabbat alone on Saturday" "d[0]['r']['weekday']==['morning','noon','evening','daily'] and d[0]['r']['friday']==['morning','noon','daily'] and d[0]['r']['saturday']==['motzash'] and d[0]['r']['enabled'] is True and d[0]['r']['in_housekeeping'] is True and d[0]['r']['missed_now']==0" "$TMP/out" 200
+  "$SQL" - > "$TMP/out" <<'SQLEND'
+begin;
+create temp table a as select json_agg(json_build_object('slot', slot, 'why', reason) order by slot) j
+  from public.app_missed_editions('1999-01-01');
+insert into public.tamzit_editions (id, created_at, edition_date, main_text, language, edition_type, time_slot) values
+ (-101, '1999-01-01 07:00+00', '1999-01-01', E'📻 *תמצית החדשות*\n*מהדורת בוקר, בדיקה*\n\n📌 *_בדיקה:_*\n• ידיעה.', 'hebrew', 'classic', 'בוקר'),
+ (-102, '1999-01-01 13:00+00', '1999-01-01', E'📻 *תמצית החדשות*\n*מהדורת צוהריים, בדיקה*\n\n📌 *_בדיקה:_*\n• ידיעה.', 'hebrew', 'classic', 'צהריים'),
+ (-103, '1999-01-01 19:00+00', '1999-01-01', E'📻 *תמצית החדשות*\n*מהדורת ערב, בדיקה*\n\n📌 *_בדיקה:_*\n• ידיעה.', 'hebrew', 'classic', 'ערב'),
+ (-104, '1999-01-01 19:05+00', '1999-01-01', E'📻 *תמצית החדשות*\n*המהדורה היומית, בדיקה*\n\n📌 *_בדיקה:_*\n• ידיעה.', 'hebrew', 'daily', 'יומי');
+create temp table b as select json_agg(json_build_object('slot', slot, 'why', reason) order by slot) j
+  from public.app_missed_editions('1999-01-01');
+insert into public.app_push_log (key, edition_id) values ('smoke-w1', -101), ('smoke-w2', -102), ('smoke-w3', -103), ('smoke-w4', -104);
+create temp table c as select json_agg(json_build_object('slot', slot, 'why', reason) order by slot) j
+  from public.app_missed_editions('1999-01-01');
+select json_build_object('none_written', (select j from a), 'written_not_pushed', (select j from b),
+                         'written_and_pushed', (select j from c)) as r;
+rollback;
+SQLEND
+  check "a day with nothing written reports every slot missing, one written without a notification reports not_pushed, and a full day reports nothing (rolled back)" "[x['why'] for x in d[0]['r']['none_written']]==['missing']*4 and [x['why'] for x in d[0]['r']['written_not_pushed']]==['not_pushed']*4 and d[0]['r']['written_and_pushed'] is None" "$TMP/out" 200
+  s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-push" -H "Authorization: Bearer $ANON" -H 'Content-Type: application/json' -H "x-app-secret: $SECRET" -d '{"action":"alert","title":"בדיקה","body":"בדיקת עשן","dry_run":true}')
+  check "an alert goes to the operators' own devices, and only the server may send one" "s==200 and d.get('dry_run') is True and d.get('operators')>=1" "$TMP/out" "$s"
+  s=$(curl -sS -o "$TMP/out" -w '%{http_code}' -X POST "$FN/app-push" -H "Authorization: Bearer $ANON" -H 'Content-Type: application/json' -H "x-app-secret: $CONSOLE" -d '{"action":"alert","title":"x","body":"y"}')
+  check "the console secret cannot send an operators' alert" "s==403" "$TMP/out" "$s"
+  "$SQL" - > "$TMP/out" <<SQLEND
+begin;
+update public.user_preferences set update_frequency = 1 where user_id = '$FREE_ID';
+select set_config('request.jwt.claims', '{"sub":"$FREE_ID","role":"authenticated"}', true);
+set local role authenticated;
+create temp table f as select public.app_personal_edition() as j;
+reset role;
+select json_build_object(
+  'has_key', (select j ? 'other_editions' from f),
+  'listed', (select json_agg(x ->> 'id' order by x ->> 'published_at') from f, jsonb_array_elements(f.j -> 'other_editions') x),
+  'should_be', (select json_agg(w.id::text order by w.published_at)
+                from f, public.app_editions_window('he',
+                       (select max(e.created_at) from public.tamzit_editions e where e.id = (f.j ->> 'edition_id')::bigint),
+                       now()) w
+                where w.track <> 'special' and w.id <> (f.j ->> 'edition_id')::bigint)) as r;
+rollback;
+SQLEND
+  check "a reader on one edition a day is told which editions came out after theirs" "d[0]['r']['has_key'] is True and d[0]['r']['listed']==d[0]['r']['should_be']" "$TMP/out" 200
   "$SQL" - > "$TMP/out" <<'SQLEND'
 begin;
 update public.app_settings set value = 'true'::jsonb where key = 'whatsapp_editions_fallback';

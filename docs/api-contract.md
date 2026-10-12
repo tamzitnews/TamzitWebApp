@@ -213,6 +213,9 @@ type Feed = {
   notices: string[];                                // the edition's notices to readers ("קוראים יקרים, …"), 0–2
   edition_id: string | null;                        // newest regular edition in the feed
   credit: { writer: string | null; translator: string | null } | null;  // byline of that edition; null for a special update
+  other_editions: { id: string; kind: 'morning'|'noon'|'evening'|'erev_shabbat'|'motzash'; title: string | null; published_at: string }[];
+                                                    // personal edition only: what came out after the reader's own
+                                                    // edition and is not theirs (one or two editions a day)
   next_edition?: { type: 'morning'|'noon'|'evening'|'motzash'; at: string } | null;  // personal edition only
 };
 ```
@@ -224,6 +227,10 @@ type Feed = {
 - `credit` (`app_edition_credit`): the edition's byline, read from its credit line ("כתיבה: הדר לבני.",
   "Author: Hadar Livny", "Rédaction: … / Traduction: …"). The parser keeps that line out of the items; the app shows
   it under the edition name, as a news site shows the reporter's. Special updates carry none.
+- `other_editions`: for a reader who gets one or two editions a day, the editions of their language published after
+  the one they were given. Without it their screen shows yesterday's edition with nothing to explain why, which reads
+  as a broken app; the app names them under the header and opens them on a tap. Empty for a reader who gets every
+  edition, and in the archive view.
 - `next_edition` (`app_next_edition`): the next edition the reader gets and roughly when, from
   `app_settings.edition_schedule` (times per slot and language, editions per kind of day), `app_calendar_days`
   (chol hamoed: morning and evening only) and the reader's rest periods (no edition from `erev_lead_min` before

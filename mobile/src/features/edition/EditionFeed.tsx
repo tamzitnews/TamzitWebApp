@@ -24,6 +24,7 @@ import { CommunityLabel, EmptyLevel, EndOfEdition, GoodNews } from './Closing';
 import { EditionHeader } from './EditionHeader';
 import { allItems, editionDate, editionPublishedAt, itemCount, useNextEdition } from './editionMeta';
 import { NoticeStrip } from './NoticeStrip';
+import { OtherEditions } from './OtherEditions';
 import { SectionHeading, SubsectionHeading } from './SectionHeading';
 import { SpecialCard } from './SpecialCard';
 import { S } from './strings';
@@ -31,6 +32,7 @@ import { S } from './strings';
 type Row =
   | { key: string; type: 'header' }
   | { key: string; type: 'notices'; notices: string[] }
+  | { key: string; type: 'other'; editions: NonNullable<Feed['other_editions']> }
   | { key: string; type: 'special'; item: FeedItem }
   | { key: string; type: 'section'; title: string; afterHeader: boolean }
   | { key: string; type: 'subsection'; title: string; afterSection: boolean }
@@ -99,6 +101,8 @@ function splitSpecials(feed: Feed): { fresh: FeedItem[]; earlier: FeedItem[] } {
 
 function buildRows(feed: Feed, earlierTitle: string): Row[] {
   const rows: Row[] = [{ key: 'header', type: 'header' }];
+  const others = feed.other_editions ?? [];
+  if (others.length) rows.push({ key: 'other', type: 'other', editions: others });
   const notices = (feed.notices ?? []).filter((n) => n.trim());
   if (notices.length) rows.push({ key: 'notices', type: 'notices', notices });
   const { fresh, earlier } = splitSpecials(feed);
@@ -240,6 +244,8 @@ export function EditionFeed({
               onListen={onListen}
             />
           );
+        case 'other':
+          return <OtherEditions editions={row.editions} />;
         case 'notices':
           return <NoticeStrip notices={row.notices} />;
         case 'special':

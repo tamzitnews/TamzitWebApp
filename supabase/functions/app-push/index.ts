@@ -354,7 +354,7 @@ Deno.serve(async (req) => {
 
     const body = await readBody(req);
     const action = typeof body.action === 'string' ? body.action : '';
-    if (action && !['audience', 'broadcast', 'history'].includes(action)) return json({ error: 'unknown_action' }, 400);
+    if (action && !['audience', 'broadcast', 'history', 'alert'].includes(action)) return json({ error: 'unknown_action' }, 400);
 
     // The console signs in as a person (the app's own login): their account must be listed in console_admin_emails.
     if (!isAdmin && !isConsole && action) {
@@ -417,6 +417,27 @@ Deno.serve(async (req) => {
       });
       console.log('app-push broadcast', { id, devices: awake.length, sent, ...counts });
       return json({ ok: true, id, devices: awake.length, sent, ...result });
+    }
+
+    // An alert to the operators themselves, not to readers: the watchdog saw an edition that did not arrive
+    // (app_edition_watchdog). Server-to-server only, and it goes to the operators' own devices.
+    if (action === 'alert') {
+      stage = 'alert';
+      if (!isAdmin) return json({ error: 'forbidden' }, 403);
+      const title = String(body.title ?? '').trim().slice(0, 100) || 'תמצית החדשות';
+      const text = String(body.body ?? '').trim().slice(0, 500);
+      if (!text) return json({ error: 'missing_body' }, 400);
+      const { data: rows, error } = await db.rpc('app_operator_tokens');
+      if (error) throw error;
+      const tokens = [...new Set(((rows ?? []) as { push_token: string }[]).map((r) => r.push_token).filter(Boolean))];
+      if (body.dry_run) return json({ ok: true, dry_run: true, operators: tokens.length, title, body: text });
+      if (!tokens.length) return json({ ok: true, operators: 0, sent: 0 });
+      const { sent, invalid, counts } = await sendToTokens(
+        tokens, title, text, { type: 'alert', url: 'tamzit://' }, (st) => (stage = st),
+      );
+      if (invalid.length) await db.from('app_devices').delete().in('push_token', invalid);
+      console.log('app-push alert', { operators: tokens.length, sent, ...counts });
+      return json({ ok: true, operators: tokens.length, sent, ...counts, removed_tokens: invalid.length });
     }
 
     if (action === 'history') {

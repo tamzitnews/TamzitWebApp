@@ -84,6 +84,8 @@ export type Feed = {
   edition_id?: string | null;
   /** Byline of that edition: who wrote it, and in French who translated it. Special updates carry none. */
   credit?: { writer: string | null; translator: string | null } | null;
+  /** Editions published after the reader's own one that are not theirs (one or two editions a day). */
+  other_editions?: { id: string; kind: EditionType; title: string | null; published_at: string }[];
   /** Personal edition only: the reader's next edition, or null when unknown. */
   next_edition?: NextEdition | null;
 };
